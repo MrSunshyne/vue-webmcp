@@ -22,7 +22,9 @@ const { isRegistered } = useWebMCPTool({
 </script>
 ```
 
-The tool registers when the component mounts and unregisters when it unmounts — what the agent can do stays in lockstep with what's on screen.
+The tool registers when the component mounts and unregisters when it unmounts, so what the agent can do matches what is on screen.
+
+Live demo: [mrsunshyne.github.io/vue-webmcp](https://mrsunshyne.github.io/vue-webmcp/) (needs Chrome 149+ with `chrome://flags/#enable-webmcp-testing`).
 
 > **Status (2026-08-01):** WebMCP is 🧪 experimental — a W3C Web Machine Learning CG draft, in Chrome origin trial (149→156, ship target 157), locally testable via `chrome://flags/#enable-webmcp-testing`. WebKit [opposes](https://github.com/WebKit/standards-positions/issues/670); Mozilla is [undecided](https://github.com/mozilla/standards-positions/issues/1412). Everything here feature-detects and no-ops where the API is absent.
 

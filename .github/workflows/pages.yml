@@ -26,17 +26,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: BASE_PATH=/vue-webmcp/vite/ pnpm --filter playground-vite build
-      - run: NUXT_APP_BASE_URL=/vue-webmcp/nuxt/ pnpm --filter playground-nuxt generate
-      - name: Assemble site
-        run: |
-          mkdir -p site
-          cp playgrounds/index.html site/index.html
-          cp -r playgrounds/vite/dist site/vite
-          cp -r playgrounds/nuxt/.output/public site/nuxt
+      - run: BASE_PATH=/vue-webmcp/ pnpm --filter playground-vite build
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: playgrounds/vite/dist
 
   deploy:
     needs: build
