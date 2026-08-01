@@ -1,0 +1,419 @@
+/**
+ * Behavioral contract ported from use-webmcp-tool
+ * (https://github.com/GoogleChromeLabs/use-webmcp-tool),
+ * Copyright 2026 Google LLC, Apache-2.0 — see NOTICE at the repository root —
+ * plus Vue-specific coverage: reactive options, effectScope disposal, and
+ * live-closure execute semantics.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { effectScope, nextTick, ref } from 'vue'
+import { useWebMCPTool } from '../src'
+import type { UseWebMCPToolReturn, WebMCPToolResponse } from '../src'
+import { cleanupModelContext, installFakeModelContext, mountComposable } from './harness'
+
+const baseOptions = {
+  name: 'add-todo',
+  description: 'Add a todo',
+  inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
+}
+
+async function invoke(
+  tools: Map<string, { execute: (args: unknown) => unknown }>,
+  name: string,
+  args: unknown = {},
+): Promise<WebMCPToolResponse> {
+  const tool = tools.get(name)
+  if (!tool) throw new Error(`tool "${name}" is not registered`)
+  return (await tool.execute(args)) as WebMCPToolResponse
+}
+
+afterEach(() => {
+  cleanupModelContext()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
+
+describe('registration lifecycle', () => {
+  it('registers on mount and unregisters (via abort) on unmount', () => {
+    const { tools, registerTool } = installFakeModelContext()
+    const { result, unmount } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'ok' }),
+    )
+
+    expect(result.isSupported.value).toBe(true)
+    expect(result.isRegistered.value).toBe(true)
+    expect(result.error.value).toBeNull()
+    expect(registerTool).toHaveBeenCalledTimes(1)
+    const call = registerTool.mock.calls[0]!
+    expect(call[0].name).toBe('add-todo')
+    expect(call[0].description).toBe('Add a todo')
+    expect(call[0].inputSchema).toEqual(baseOptions.inputSchema)
+
+    unmount()
+    expect(tools.size).toBe(0)
+  })
+
+  it('passes annotations through to registerTool', () => {
+    const { registerTool } = installFakeModelContext()
+    const annotations = { readOnlyHint: true, untrustedContentHint: false }
+    mountComposable(() => useWebMCPTool({ ...baseOptions, annotations, execute: () => 'ok' }))
+
+    expect(registerTool).toHaveBeenCalledTimes(1)
+    expect(registerTool.mock.calls[0]![0].annotations).toEqual(annotations)
+  })
+
+  it('reports isSupported: false when no modelContext exists', () => {
+    vi.useFakeTimers()
+    const { result, unmount } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'ok' }),
+    )
+
+    expect(result.isSupported.value).toBe(false)
+    expect(result.isRegistered.value).toBe(false)
+    expect(result.error.value).toBeNull()
+    unmount()
+  })
+
+  it('follows a reactive enabled ref, registering only while true', async () => {
+    const { tools, registerTool } = installFakeModelContext()
+    const enabled = ref(false)
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, enabled, execute: () => 'ok' }),
+    )
+
+    expect(result.isSupported.value).toBe(true)
+    expect(result.isRegistered.value).toBe(false)
+    expect(registerTool).not.toHaveBeenCalled()
+
+    enabled.value = true
+    await nextTick()
+    expect(result.isRegistered.value).toBe(true)
+    expect(tools.size).toBe(1)
+
+    enabled.value = false
+    await nextTick()
+    expect(result.isRegistered.value).toBe(false)
+    expect(tools.size).toBe(0)
+  })
+
+  it('accepts enabled as a getter', async () => {
+    const { tools } = installFakeModelContext()
+    const visible = ref(true)
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, enabled: () => visible.value, execute: () => 'ok' }),
+    )
+
+    expect(result.isRegistered.value).toBe(true)
+    visible.value = false
+    await nextTick()
+    expect(result.isRegistered.value).toBe(false)
+    expect(tools.size).toBe(0)
+  })
+})
+
+describe('late injection', () => {
+  it('detects a modelContext injected after mount and registers', () => {
+    vi.useFakeTimers()
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'ok' }),
+    )
+    expect(result.isSupported.value).toBe(false)
+
+    const { tools } = installFakeModelContext()
+    vi.advanceTimersByTime(500)
+
+    expect(result.isSupported.value).toBe(true)
+    expect(result.isRegistered.value).toBe(true)
+    expect(tools.size).toBe(1)
+  })
+
+  it('gives up polling after 10 seconds', () => {
+    vi.useFakeTimers()
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'ok' }),
+    )
+    vi.advanceTimersByTime(10_000)
+
+    const { registerTool } = installFakeModelContext()
+    vi.advanceTimersByTime(5_000)
+
+    expect(result.isSupported.value).toBe(false)
+    expect(registerTool).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the deprecated navigator.modelContext with a warning', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tools } = installFakeModelContext('navigator')
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'ok' }),
+    )
+
+    expect(result.isSupported.value).toBe(true)
+    expect(result.isRegistered.value).toBe(true)
+    expect(tools.size).toBe(1)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('navigator.modelContext'))
+  })
+})
+
+describe('registration errors', () => {
+  it('captures a synchronous registration error, e.g. a tools permissions policy denial', () => {
+    const { registerTool } = installFakeModelContext()
+    registerTool.mockImplementation(() => {
+      throw new DOMException('denied', 'NotAllowedError')
+    })
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'ok' }),
+    )
+
+    expect(result.isSupported.value).toBe(true)
+    expect(result.isRegistered.value).toBe(false)
+    expect(result.error.value?.name).toBe('NotAllowedError')
+  })
+
+  it('captures an async rejection from a promise-returning registerTool', async () => {
+    const { registerTool } = installFakeModelContext()
+    registerTool.mockImplementation(() => Promise.reject(new Error('nope')))
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'ok' }),
+    )
+
+    await nextTick()
+    expect(result.isRegistered.value).toBe(false)
+    expect(result.error.value?.message).toBe('nope')
+  })
+})
+
+describe('re-registration identity', () => {
+  it('re-registers when the description changes', async () => {
+    const { tools, registerTool } = installFakeModelContext()
+    const description = ref('Add a todo')
+    mountComposable(() => useWebMCPTool({ ...baseOptions, description, execute: () => 'ok' }))
+
+    description.value = 'Add an item to the list'
+    await nextTick()
+
+    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(tools.size).toBe(1)
+    expect(tools.get('add-todo')?.description).toBe('Add an item to the list')
+  })
+
+  it('does not churn on a content-equal schema object', async () => {
+    const { registerTool } = installFakeModelContext()
+    const inputSchema = ref({ type: 'object', properties: { text: { type: 'string' } } })
+    mountComposable(() => useWebMCPTool({ ...baseOptions, inputSchema, execute: () => 'ok' }))
+
+    inputSchema.value = { type: 'object', properties: { text: { type: 'string' } } }
+    await nextTick()
+
+    expect(registerTool).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-registers under the new name and removes the old tool', async () => {
+    const { tools } = installFakeModelContext()
+    const name = ref('add-todo')
+    mountComposable(() => useWebMCPTool({ ...baseOptions, name, execute: () => 'ok' }))
+
+    name.value = 'append-todo'
+    await nextTick()
+
+    expect(tools.size).toBe(1)
+    expect(tools.has('append-todo')).toBe(true)
+  })
+
+  it('reads live reactive state in execute without re-registering', async () => {
+    const { tools, registerTool } = installFakeModelContext()
+    const count = ref(0)
+    mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => `count is ${count.value}` }),
+    )
+
+    count.value = 5
+    await nextTick()
+
+    expect(registerTool).toHaveBeenCalledTimes(1)
+    const response = await invoke(tools, 'add-todo')
+    expect(response.content[0]?.text).toBe('count is 5')
+  })
+})
+
+describe('result normalization', () => {
+  it('maps a string to a single text block', async () => {
+    const { tools } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute: () => 'done' }))
+    expect(await invoke(tools, 'add-todo')).toEqual({
+      content: [{ type: 'text', text: 'done' }],
+    })
+  })
+
+  it('maps undefined to an empty successful result', async () => {
+    const { tools } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute: () => undefined }))
+    expect(await invoke(tools, 'add-todo')).toEqual({ content: [] })
+  })
+
+  it('passes an already well-formed result through untouched', async () => {
+    const { tools } = installFakeModelContext()
+    const shaped = { content: [{ type: 'text', text: 'raw' }], isError: false }
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute: () => shaped }))
+    expect(await invoke(tools, 'add-todo')).toBe(shaped)
+  })
+
+  it('JSON-serializes objects and numbers into text blocks', async () => {
+    const { tools } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ ...baseOptions, name: 'obj', execute: () => ({ id: 7 }) }))
+    mountComposable(() => useWebMCPTool({ ...baseOptions, name: 'num', execute: () => 42 }))
+
+    expect((await invoke(tools, 'obj')).content[0]?.text).toBe('{"id":7}')
+    expect((await invoke(tools, 'num')).content[0]?.text).toBe('42')
+  })
+
+  it('applies formatOutput before normalization, with result and args', async () => {
+    const { tools } = installFakeModelContext()
+    const formatOutput = vi.fn((result: string, args: { text: string }) => `${result}:${args.text}`)
+    mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, execute: () => 'added', formatOutput }),
+    )
+
+    const response = await invoke(tools, 'add-todo', { text: 'milk' })
+    expect(formatOutput).toHaveBeenCalledWith('added', { text: 'milk' })
+    expect(response.content[0]?.text).toBe('added:milk')
+  })
+})
+
+describe('error normalization', () => {
+  it('turns a thrown Error into an isError result and fires onError', async () => {
+    const { tools } = installFakeModelContext()
+    const onError = vi.fn()
+    const failure = new Error('not signed in')
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: () => {
+          throw failure
+        },
+        onError,
+      }),
+    )
+
+    const response = await invoke(tools, 'add-todo')
+    expect(response).toEqual({
+      content: [{ type: 'text', text: 'not signed in' }],
+      isError: true,
+    })
+    expect(onError).toHaveBeenCalledWith(failure)
+  })
+
+  it('turns a thrown string into an isError result', async () => {
+    const { tools } = installFakeModelContext()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: () => {
+          throw 'not signed in'
+        },
+      }),
+    )
+    expect(await invoke(tools, 'add-todo')).toEqual({
+      content: [{ type: 'text', text: 'not signed in' }],
+      isError: true,
+    })
+  })
+
+  it('turns a thrown plain object into a JSON isError result', async () => {
+    const { tools } = installFakeModelContext()
+    const onError = vi.fn()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: () => {
+          throw { code: 403 }
+        },
+        onError,
+      }),
+    )
+    expect(await invoke(tools, 'add-todo')).toEqual({
+      content: [{ type: 'text', text: '{"code":403}' }],
+      isError: true,
+    })
+    expect(onError).toHaveBeenCalledWith({ code: 403 })
+  })
+
+  it('treats a returned Error exactly like a thrown one', async () => {
+    const { tools } = installFakeModelContext()
+    const onError = vi.fn()
+    const failure = new Error('boom')
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute: () => failure, onError }))
+
+    const response = await invoke(tools, 'add-todo')
+    expect(response.isError).toBe(true)
+    expect(response.content[0]?.text).toBe('boom')
+    expect(onError).toHaveBeenCalledWith(failure)
+  })
+
+  it('treats a formatOutput Error like a thrown one', async () => {
+    const { tools } = installFakeModelContext()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: () => 'fine',
+        formatOutput: () => new Error('shaping failed'),
+      }),
+    )
+    const response = await invoke(tools, 'add-todo')
+    expect(response.isError).toBe(true)
+    expect(response.content[0]?.text).toBe('shaping failed')
+  })
+})
+
+describe('scope handling', () => {
+  it('works inside a bare effectScope (e.g. a Pinia store) and unregisters on scope stop', () => {
+    const { tools } = installFakeModelContext()
+    const scope = effectScope()
+    let result: UseWebMCPToolReturn | undefined
+    scope.run(() => {
+      result = useWebMCPTool({ ...baseOptions, execute: () => 'ok' })
+    })
+
+    expect(result?.isRegistered.value).toBe(true)
+    expect(tools.size).toBe(1)
+
+    scope.stop()
+    expect(tools.size).toBe(0)
+  })
+})
+
+describe('dev-mode descriptor warnings', () => {
+  it('warns on a name outside the spec grammar and an over-budget description', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    installFakeModelContext()
+    mountComposable(() =>
+      useWebMCPTool({
+        name: 'bad name!',
+        description: 'x'.repeat(501),
+        execute: () => 'ok',
+      }),
+    )
+
+    const messages = warnSpy.mock.calls.map(call => String(call[0]))
+    expect(messages.some(m => m.includes('spec grammar'))).toBe(true)
+    expect(messages.some(m => m.includes('501-character description'))).toBe(true)
+  })
+
+  it('warns on an over-budget param description', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    installFakeModelContext()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        inputSchema: {
+          type: 'object',
+          properties: { text: { type: 'string', description: 'y'.repeat(151) } },
+        },
+        execute: () => 'ok',
+      }),
+    )
+
+    const messages = warnSpy.mock.calls.map(call => String(call[0]))
+    expect(messages.some(m => m.includes('param "text"'))).toBe(true)
+  })
+})

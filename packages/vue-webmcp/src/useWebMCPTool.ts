@@ -66,6 +66,17 @@ interface ResolvedModelContext {
   legacy: boolean
 }
 
+// DOMException inherits from Error in browsers but not in every test
+// environment; keep it intact either way so `error.name` checks (e.g.
+// "NotAllowedError") work as users expect.
+function toError(err: unknown): Error {
+  if (err instanceof Error) return err
+  if (typeof DOMException !== 'undefined' && err instanceof DOMException) {
+    return err as unknown as Error
+  }
+  return new Error(safeStringify(err))
+}
+
 function resolveModelContext(): ResolvedModelContext | null {
   if (typeof document !== 'undefined' && document.modelContext) {
     return { context: document.modelContext, legacy: false }
@@ -235,7 +246,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
         ;(result as Promise<unknown>).then(undefined, (err: unknown) => {
           if (controller !== own) return
           isRegistered.value = false
-          error.value = err instanceof Error ? err : new Error(safeStringify(err))
+          error.value = toError(err)
         })
       }
       isRegistered.value = true
@@ -244,7 +255,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       // e.g. NotAllowedError when the `tools` permissions policy is disabled.
       controller = null
       isRegistered.value = false
-      error.value = err instanceof Error ? err : new Error(safeStringify(err))
+      error.value = toError(err)
     }
   }
 
