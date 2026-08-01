@@ -156,6 +156,8 @@ Tools are an attack surface as much as an interface. Minimum hygiene:
 1. Chrome 149+ with `chrome://flags/#enable-webmcp-testing` enabled (or an [origin-trial token](https://developer.chrome.com/docs/ai/webmcp) on your origin).
 2. The [Model Context Tool Inspector](https://github.com/GoogleChromeLabs/webmcp-tools) extension to list and invoke registered tools.
 
+Live examples: the [playground](https://mrsunshyne.github.io/vue-webmcp/) from this repo, and the [Trip Splitter](https://mrsunshyne.github.io/webmcp-demos/demos/trip-splitter/) in [webmcp-demos](https://github.com/MrSunshyne/webmcp-demos), which loads this package from a CDN with no build step.
+
 ## Credits
 
 The API design, result-normalization contract, and test matrix originate from [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool) by Sarah Drasner (Google Chrome team). Portions of this package are derived from it under Apache-2.0 — see the [NOTICE](../../NOTICE) file.
