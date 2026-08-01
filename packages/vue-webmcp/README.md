@@ -41,14 +41,14 @@ document.modelContext.registerTool({
 controller.abort()
 ```
 
-`useWebMCPTool` folds that into Vue's reactivity and lifecycle:
+`useWebMCPTool` folds that into Vue's reactivity and lifecycle. Plain component state is all it needs:
 
 ```vue
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useWebMCPTool } from 'vue-webmcp'
 
-const store = useTodoStore()
-const route = useRoute()
+const todos = ref<string[]>([])
 
 const { isSupported, isRegistered, error } = useWebMCPTool({
   name: 'add-todo',
@@ -58,9 +58,8 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
     properties: { text: { type: 'string', description: 'The text content of the todo item' } },
     required: ['text'],
   },
-  enabled: () => route.name === 'todos',
   async execute({ text }) {
-    store.add(text)
+    todos.value.push(text)
     return `Added todo item: "${text}" successfully.`
   },
 })
@@ -71,7 +70,39 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 </template>
 ```
 
-The tool registers when the component mounts and unregisters automatically when it unmounts — the set of tools an agent sees stays in lockstep with what is actually on screen. It works equally in a bare `effectScope` or a Pinia store (teardown runs on scope disposal), so app-wide tools don't need a host component.
+The tool registers when the component mounts and unregisters automatically when it unmounts — the set of tools an agent sees stays in lockstep with what is actually on screen.
+
+### With Pinia and vue-router
+
+`execute` is an ordinary closure — no store is required, and the composable has no store integration to configure. But because `execute` reads reactive state live at call time, it composes naturally with one, and reactive options like `enabled` can follow the router:
+
+```vue
+<script setup lang="ts">
+import { useRoute } from 'vue-router'
+import { useWebMCPTool } from 'vue-webmcp'
+import { useTodoStore } from '@/stores/todos'
+
+const store = useTodoStore()
+const route = useRoute()
+
+const { isRegistered } = useWebMCPTool({
+  name: 'add-todo',
+  description: "Add a new item to the user's active todo list",
+  inputSchema: {
+    type: 'object',
+    properties: { text: { type: 'string', description: 'The text content of the todo item' } },
+    required: ['text'],
+  },
+  enabled: () => route.name === 'todos', // registered only while the todos page is active
+  async execute({ text }) {
+    store.add(text) // reads the live store at call time — no stale closures
+    return `Added todo item: "${text}" successfully.`
+  },
+})
+</script>
+```
+
+You can also call `useWebMCPTool` *inside* a Pinia store or a bare `effectScope` for app-wide tools that shouldn't die with a component; teardown then runs on scope disposal instead of unmount.
 
 ## API
 

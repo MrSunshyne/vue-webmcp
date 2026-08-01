@@ -13,7 +13,7 @@ const { isRegistered } = useWebMCPTool({
     required: ['text'],
   },
   async execute({ text }) {
-    store.add(text)
+    addTodo(text)
     return `Added todo item: "${text}" successfully.`
   },
 })
