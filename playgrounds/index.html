@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>vue-webmcp playgrounds</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        background: #fafafa;
+        color: #1a1a1a;
+      }
+      main {
+        max-width: 34rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+      }
+      li {
+        margin: 0.4rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>vue-webmcp playgrounds</h1>
+      <p>
+        The same todo demo built two ways. Both register WebMCP tools on
+        <code>document.modelContext</code>; the toolset changes as you mount and unmount parts of
+        the UI.
+      </p>
+      <ul>
+        <li><a href="./vite/">Vite + Vue — uses <code>vue-webmcp</code> directly</a></li>
+        <li><a href="./nuxt/">Nuxt — uses the <code>nuxt-webmcp</code> module</a></li>
+      </ul>
+      <p>
+        WebMCP is in Chrome origin trial. To see the tools register, use Chrome 149+ with
+        <code>chrome://flags/#enable-webmcp-testing</code> enabled, and invoke them with the
+        <a href="https://github.com/GoogleChromeLabs/webmcp-tools">Model Context Tool Inspector</a>
+        extension. In any other browser the demos fall back to a notice — that fallback is part of
+        the demo.
+      </p>
+      <p><a href="https://github.com/MrSunshyne/vue-webmcp">Source on GitHub</a></p>
+    </main>
+  </body>
+</html>
