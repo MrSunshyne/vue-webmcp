@@ -56,4 +56,6 @@ To see tools actually being called: Chrome 149+ with `chrome://flags/#enable-web
 
 ## License
 
-Apache-2.0. Portions derived from [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool), Copyright 2026 Google LLC — see [NOTICE](NOTICE).
+Apache-2.0. The normalization code and test harness are adapted from the Apache-2.0 licensed [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool) — full attribution in [NOTICE](NOTICE).
+
+This is an independent community project, not affiliated with or endorsed by Google.

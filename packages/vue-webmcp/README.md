@@ -160,6 +160,8 @@ Tools are an attack surface as much as an interface. Minimum hygiene:
 
 The API design, result-normalization contract, and test matrix originate from [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool) by Sarah Drasner (Google Chrome team). Portions of this package are derived from it under Apache-2.0 — see the [NOTICE](../../NOTICE) file.
 
+This is an independent community project, not affiliated with or endorsed by Google.
+
 ## License
 
 Apache-2.0
