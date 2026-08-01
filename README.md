@@ -1,5 +1,7 @@
 # vue-webmcp
 
+[![CI](https://github.com/MrSunshyne/vue-webmcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MrSunshyne/vue-webmcp/actions/workflows/ci.yml)
+
 [WebMCP](https://github.com/webmachinelearning/webmcp) for the Vue and Nuxt ecosystem: expose page functionality as typed, described tools that AI agents can call — instead of having them scrape your DOM.
 
 ```vue

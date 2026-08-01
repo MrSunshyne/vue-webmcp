@@ -32,10 +32,12 @@
   "main": "./dist/module.mjs",
   "types": "./dist/types.d.mts",
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "scripts": {
-    "build": "nuxt-module-build build"
+    "build": "nuxt-module-build build",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@nuxt/kit": "^4.0.0",

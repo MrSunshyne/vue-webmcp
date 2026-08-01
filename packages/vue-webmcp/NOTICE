@@ -1,0 +1,8 @@
+vue-webmcp
+Copyright 2026 Sandeep Ramgolam
+
+This product includes software derived from use-webmcp-tool
+(https://github.com/GoogleChromeLabs/use-webmcp-tool),
+Copyright 2026 Google LLC, licensed under the Apache License, Version 2.0.
+The MCP result-normalization behavior and the behavioral test contract
+originate from that project.
