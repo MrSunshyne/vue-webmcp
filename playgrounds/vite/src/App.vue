@@ -64,16 +64,16 @@ useWebMCPTool({
     <h1>vue-webmcp playground</h1>
 
     <p v-if="!isSupported" class="banner off">
-      No modelContext API here. Use Chrome 149+ with
+      No modelContext API in this browser. Use Chrome 149+ with
       <code>chrome://flags/#enable-webmcp-testing</code> enabled, then reload.
     </p>
     <p v-else-if="error" class="banner err">Registration failed: {{ error.message }}</p>
     <p v-else-if="isRegistered" class="banner on">
-      🤖 Agent tools ready — open the Tool Inspector and ask it to add a todo.
+      add-todo and list-todos are registered. Invoke them from the Tool Inspector extension.
     </p>
 
     <form @submit.prevent="submit">
-      <input v-model="draft" placeholder="Add a todo yourself…" aria-label="New todo" />
+      <input v-model="draft" placeholder="New todo" aria-label="New todo" />
       <button type="submit">Add</button>
     </form>
 
@@ -94,8 +94,7 @@ useWebMCPTool({
       </label>
       <ClearCompletedTool v-if="exposeClearTool" :todos="todos" @clear="clearCompleted" />
       <p class="hint">
-        The <code>clear-completed</code> tool only exists while the panel above is mounted —
-        the agent's toolset stays in lockstep with the UI.
+        The <code>clear-completed</code> tool is only registered while the panel above is mounted.
       </p>
     </section>
   </main>

@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { useWebMCPTool } from 'vue-webmcp'
-
 const props = defineProps<{ todos: { done: boolean }[] }>()
 const emit = defineEmits<{ clear: [] }>()
 
+// useWebMCPTool is auto-imported by nuxt-webmcp
 const { isRegistered } = useWebMCPTool({
   name: 'clear-completed',
   description: 'Remove all completed items from the todo list',

@@ -38,8 +38,8 @@ Behavioral counterpart to [`use-webmcp-tool`](https://github.com/GoogleChromeLab
 ```
 packages/vue-webmcp    core composable + test suite
 packages/nuxt-webmcp   Nuxt module
-playgrounds/vite       todo demo (mount-scoped tools)
-playgrounds/nuxt       module demo (auto-import, SSR)
+playgrounds/vite       todo demo (three tools, one mount-scoped)
+playgrounds/nuxt       the same todo demo via the Nuxt module (auto-import, SSR)
 ```
 
 ```sh

@@ -66,7 +66,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 </script>
 
 <template>
-  <p v-if="isSupported">{{ isRegistered ? '🤖 Agent tools ready' : '…' }}</p>
+  <p v-if="isSupported && isRegistered">add-todo is available to agents</p>
 </template>
 ```
 

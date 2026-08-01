@@ -48,7 +48,7 @@ const { isSupported, isRegistered } = useWebMCPTool({
 
 <template>
   <ClientOnly>
-    <p v-if="isSupported && isRegistered">🤖 This page is agent-readable</p>
+    <p v-if="isSupported && isRegistered">search-posts is available to agents</p>
   </ClientOnly>
 </template>
 ```
