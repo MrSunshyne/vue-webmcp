@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.nuxt/
+.output/
+.data/
+coverage/
+*.log
+.DS_Store
