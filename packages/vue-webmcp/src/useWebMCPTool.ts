@@ -55,7 +55,12 @@ const TOOL_NAME_PATTERN = /^[\w.-]{1,128}$/
 const DESCRIPTION_BUDGET = 500
 const PARAM_DESCRIPTION_BUDGET = 150
 
-const isDev = typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production'
+// No dependency on node types: bundlers statically replace
+// `process.env.NODE_ENV`, and the typeof guard keeps bundler-less browsers safe.
+declare const process: undefined | { env?: { NODE_ENV?: string } }
+
+const isDev =
+  typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production'
 
 function warn(message: string): void {
   console.warn(`[vue-webmcp] ${message}`)
