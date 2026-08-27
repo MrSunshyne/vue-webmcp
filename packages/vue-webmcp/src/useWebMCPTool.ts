@@ -203,10 +203,12 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     stopPoll = null
   }
 
+  // A poll that gave up is forgotten too, so a later change to the
+  // registration fields can start a fresh one.
   function startPolling(): void {
-    stopPoll ??= pollForModelContext(() => {
+    stopPoll ??= pollForModelContext(found => {
       stopPoll = null
-      register()
+      if (found) register()
     })
   }
 

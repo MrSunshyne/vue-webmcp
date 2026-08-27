@@ -49,17 +49,20 @@ const LATE_INJECTION_INTERVAL_MS = 500
 const LATE_INJECTION_MAX_ATTEMPTS = 20
 
 /**
- * Rechecks for a modelContext every 500 ms for 10 s and calls `onFound` once
- * it appears. Returns a function that stops waiting.
+ * Rechecks for a modelContext every 500 ms for 10 s. Calls `onSettled(true)`
+ * once it appears, or `onSettled(false)` after giving up, so the caller can
+ * forget the poll and start another one later. Returns a function that stops
+ * waiting without calling back.
  */
-export function pollForModelContext(onFound: () => void): () => void {
+export function pollForModelContext(onSettled: (found: boolean) => void): () => void {
   let attempts = 0
   const timer = setInterval(() => {
     if (resolveModelContext()) {
       clearInterval(timer)
-      onFound()
+      onSettled(true)
     } else if (++attempts >= LATE_INJECTION_MAX_ATTEMPTS) {
       clearInterval(timer)
+      onSettled(false)
     }
   }, LATE_INJECTION_INTERVAL_MS)
   return () => clearInterval(timer)

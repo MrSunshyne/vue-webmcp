@@ -171,6 +171,26 @@ describe('late injection', () => {
     expect(registerTool).not.toHaveBeenCalled()
   })
 
+  it('polls again after giving up once a registration field changes', async () => {
+    vi.useFakeTimers()
+    const enabled = ref(true)
+    const { result } = mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, enabled, execute: () => 'ok' }),
+    )
+    vi.advanceTimersByTime(10_000)
+    expect(result.isSupported.value).toBe(false)
+
+    enabled.value = false
+    await nextTick()
+    const { tools } = installFakeModelContext()
+    vi.advanceTimersByTime(500)
+    expect(result.isSupported.value).toBe(true)
+
+    enabled.value = true
+    await nextTick()
+    expect(tools.size).toBe(1)
+  })
+
   it('falls back to the deprecated navigator.modelContext with a warning', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { tools } = installFakeModelContext('navigator')
