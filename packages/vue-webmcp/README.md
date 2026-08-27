@@ -249,7 +249,7 @@ Three transitional details are handled for you. Arguments go over as the JSON st
 
 ## Configuration: hooks and budgets
 
-App-level settings reach every `useWebMCPTool` call below the provider through Vue's provide/inject. Provide once, at the root:
+App-level settings reach every `useWebMCPTool` call through Vue's provide/inject, read once when each tool is set up. Provide once, at the root:
 
 ```ts
 // main.ts
@@ -258,18 +258,18 @@ import { WEBMCP_CONFIG } from 'vue-webmcp'
 app.provide(WEBMCP_CONFIG, {
   onToolCall: ({ name }) => track('tool_called', { name }),
   onToolResult: ({ name, ok, ms }) => track('tool_result', { name, ok, ms }),
-  budgets: import.meta.env.MODE === 'test' ? 'error' : 'warn',
+  budgets: import.meta.env.MODE === 'test' ? 'error' : undefined,
 })
 ```
 
-`provideWebMCPConfig(config)` does the same from a root component's `setup()`. Outside an injection context (a bare `effectScope` with no app) there is no config and the defaults apply.
+`app.provide` reaches everything, including tools registered from Pinia stores or under `app.runWithContext`. `provideWebMCPConfig(config)` in a component's `setup()` reaches that component's subtree only. Outside an injection context (a bare `effectScope` with no app) there is no config and the defaults apply.
 
 | option | meaning |
 | --- | --- |
 | `onToolCall({ name, args? })` | Runs before `execute`. |
-| `onToolResult({ name, ok, ms, response, error?, args? })` | Runs after normalization, for success and failure alike: `ok` is false when `execute` threw, returned an `Error`, or returned an `isError` result; `error` holds what was thrown. Runs after the tool's own `onError`. |
-| `includeArgs` | Put the call arguments in both payloads. Off by default: arguments often carry personal data that should not reach an analytics tool. |
-| `budgets` | What happens when a name, description, parameter or result is over [Chrome's character budgets](#security-notes): `'warn'` logs (the development default), `'error'` throws from `setup()` for an over-budget initial definition, records a later over-budget change in `error` without registering, and turns an oversized result into an `isError` response, so a test run fails on it; `false` skips the checks (the production default). |
+| `onToolResult({ name, ok, ms, response, error?, args? })` | Runs after normalization, for success and failure alike: `ok` is false when `execute` threw, returned an `Error`, or returned an `isError` result; `error` holds what was thrown; `ms` is timed from after `onToolCall`. Runs after the tool's own `onError`. |
+| `includeArgs` | Put the call arguments in both payloads, as the same object `execute` receives (do not mutate it). Off by default: arguments often carry personal data that should not reach an analytics tool. |
+| `budgets` | What happens when a name, description, parameter or result is over [Chrome's character budgets](#security-notes): `'warn'` logs (the development default); `'error'` fails setup for an over-budget initial definition (a thrown error in a dev or test build; the server never validates), records a later over-budget change in `error` without registering, and turns an oversized result into an `isError` response, so a test run fails on any of them; `false` skips the checks (the production default). An explicit `'warn'` is honoured in production too, so leave it unset outside test runs. |
 
 A hook that throws is reported with a warning and never changes the tool's result.
 

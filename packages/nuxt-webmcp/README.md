@@ -101,7 +101,7 @@ import { WEBMCP_CONFIG } from 'vue-webmcp'
 export default defineNuxtPlugin(nuxtApp => {
   nuxtApp.vueApp.provide(WEBMCP_CONFIG, {
     onToolResult: ({ name, ok, ms }) => useTrackEvent('tool_result', { name, ok, ms }),
-    budgets: process.env.NODE_ENV === 'test' ? 'error' : 'warn',
+    budgets: import.meta.test ? 'error' : undefined,
   })
 })
 ```
