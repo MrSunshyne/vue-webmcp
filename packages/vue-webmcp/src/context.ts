@@ -43,6 +43,19 @@ export function resolveModelContext(): ResolvedModelContext | null {
   return null
 }
 
+export const now = (): number =>
+  typeof performance !== 'undefined' ? performance.now() : Date.now()
+
+// A broken analytics hook must not break the tool call.
+export function emitHook<T>(hook: ((event: T) => void) | undefined, event: T): void {
+  if (!hook) return
+  try {
+    hook(event)
+  } catch (err) {
+    if (isDev) warn(`a WebMCP hook threw: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 // The modelContext API is often injected by an extension content script that
 // runs after the app mounts, so absence now doesn't mean absence forever.
 const LATE_INJECTION_INTERVAL_MS = 500

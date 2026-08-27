@@ -12,7 +12,15 @@ import {
 import type { MaybeRefOrGetter, Ref } from 'vue'
 import { injectWebMCPConfig } from './config'
 import type { WebMCPConfig } from './config'
-import { isDev, pollForModelContext, resolveModelContext, toError, warn } from './context'
+import {
+  emitHook,
+  isDev,
+  now,
+  pollForModelContext,
+  resolveModelContext,
+  toError,
+  warn,
+} from './context'
 import { toErrorResponse, toToolResponse } from './normalize'
 import type {
   WebMCPToolAnnotations,
@@ -118,19 +126,6 @@ function validateDescriptor(descriptor: WebMCPToolDescriptor, mode: BudgetMode):
   for (const problem of problems) warn(problem)
 }
 
-const now = (): number =>
-  typeof performance !== 'undefined' ? performance.now() : Date.now()
-
-// A broken analytics hook must not break the tool call.
-function emit<T>(hook: ((event: T) => void) | undefined, event: T): void {
-  if (!hook) return
-  try {
-    hook(event)
-  } catch (err) {
-    if (isDev) warn(`a WebMCP hook threw: ${err instanceof Error ? err.message : String(err)}`)
-  }
-}
-
 /**
  * Registers a WebMCP tool with the browser and ties its lifetime to the
  * current component or effect scope, so the set of tools an agent sees stays
@@ -215,7 +210,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     const name = toValue(options.name)
     // Arguments reach the hooks only when the app opted in.
     const argsPayload = config?.includeArgs ? { args } : {}
-    emit(config?.onToolCall, { name, ...argsPayload })
+    emitHook(config?.onToolCall, { name, ...argsPayload })
     // Timed from here, so a slow hook does not count against the tool.
     const started = now()
     try {
@@ -226,7 +221,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       if (shaped instanceof Error) throw shaped
       const response = toToolResponse(shaped)
       if (budgets) checkOutputBudget(response, budgets)
-      emit(config?.onToolResult, {
+      emitHook(config?.onToolResult, {
         name,
         ok: !response.isError,
         ms: now() - started,
@@ -237,7 +232,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     } catch (err) {
       options.onError?.(err)
       const response = toErrorResponse(err)
-      emit(config?.onToolResult, {
+      emitHook(config?.onToolResult, {
         name,
         ok: false,
         ms: now() - started,

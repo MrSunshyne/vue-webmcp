@@ -10,6 +10,7 @@ export type {
 } from './useRegisteredTools'
 export { useWebMCPForm } from './declarative'
 export type {
+  FormFieldValue,
   FormFields,
   UseWebMCPFormOptions,
   UseWebMCPFormReturn,
