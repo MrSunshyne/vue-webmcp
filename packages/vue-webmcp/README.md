@@ -272,6 +272,50 @@ app.provide(WEBMCP_CONFIG, {
 | `budgets` | What happens when a name, description, parameter or result is over [Chrome's character budgets](#security-notes): `'warn'` logs (the development default); `'error'` fails setup for an over-budget initial definition (a thrown error in a dev or test build; the server never validates), records a later over-budget change in `error` without registering, and turns an oversized result into an `isError` response, so a test run fails on any of them; `false` skips the checks (the production default). An explicit `'warn'` is honoured in production too, so leave it unset outside test runs. |
 
 A hook that throws is reported with a warning and never changes the tool's result.
+## Testing tools
+
+`vue-webmcp/testing` ships the test double this package's own suite runs on: a stub `document.modelContext` that records registrations, respects the `AbortSignal` that unregisters, implements `getTools()` / `executeTool()` / `toolchange` as the spec describes, and adds `names()` and `call()` for assertions. It moves with the spec (the `{ signal }` argument Chrome 153 added, for instance), so projects need not keep their own copy.
+
+In vitest with jsdom or happy-dom, install a fresh stub per test:
+
+```ts
+import { installModelContextStub, uninstallModelContextStub } from 'vue-webmcp/testing'
+import type { ModelContextStub } from 'vue-webmcp/testing'
+
+let stub: ModelContextStub
+beforeEach(() => {
+  stub = installModelContextStub()
+})
+afterEach(() => uninstallModelContextStub())
+
+test('the editor offers save_note', async () => {
+  mount(NoteEditor)
+  expect(stub.names()).toEqual(['save_note'])
+  expect(await stub.call('save_note', { title: 'Groceries' })).toEqual({
+    content: [{ type: 'text', text: 'Saved "Groceries".' }],
+  })
+})
+```
+
+`call` returns what the tool's `execute` produced, which through `useWebMCPTool` is the normalized `{ content, isError }` an agent would see.
+
+In Playwright, the same stub as a string, installed before any page script runs. `document.modelContext` is typed as the browser API, so cast it to reach the helpers:
+
+```ts
+import { MODEL_CONTEXT_INIT_SCRIPT } from 'vue-webmcp/testing'
+import type { ModelContextStub } from 'vue-webmcp/testing'
+
+const stub = () => document.modelContext as unknown as ModelContextStub
+
+await context.addInitScript(MODEL_CONTEXT_INIT_SCRIPT)
+await page.goto('/notes')
+expect(await page.evaluate(() => stub().names())).toEqual(['save_note'])
+expect(await page.evaluate(() => stub().call('save_note', { title: 'x' }))).toEqual({
+  content: [{ type: 'text', text: 'Saved "x".' }],
+})
+```
+
+Puppeteer: `page.evaluateOnNewDocument(MODEL_CONTEXT_INIT_SCRIPT)`. Import the string from Node (a fixture or setup file); a bundler that re-transforms the package with name-keeping helpers would leave them in the string.
 
 ## Security notes
 

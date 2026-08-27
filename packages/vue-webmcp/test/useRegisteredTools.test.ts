@@ -159,17 +159,16 @@ describe('execution', () => {
   })
 
   it('switches to the object form when the browser rejects the string with a TypeError', async () => {
-    const { context } = installFakeModelContext()
+    const { context, originals } = installFakeModelContext()
     mountComposable(() => useWebMCPTool({ name: 'add', description: 'Add', execute: () => 'ok' }))
     const { result } = mountComposable(() => useRegisteredTools())
     await settle()
 
     // An `object` parameter fails WebIDL conversion for a string, before the tool runs.
-    const objectOnly = context.executeTool.getMockImplementation()!
     context.executeTool.mockImplementation((tool, args, options) =>
       typeof args === 'string'
         ? Promise.reject(new TypeError("parameter 2 is not of type 'Object'"))
-        : objectOnly(tool, args, options),
+        : originals.executeTool(tool, args, options),
     )
 
     const tool = result.tools.value[0]!

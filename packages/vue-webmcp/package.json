@@ -30,6 +30,15 @@
     ".": {
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.mts",
+      "default": "./dist/testing/index.mjs"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "testing": ["./dist/testing/index.d.mts"]
     }
   },
   "main": "./dist/index.mjs",
