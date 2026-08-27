@@ -10,6 +10,8 @@ import {
   watch,
 } from 'vue'
 import type { MaybeRefOrGetter, Ref } from 'vue'
+import { injectWebMCPConfig } from './config'
+import type { WebMCPConfig } from './config'
 import { isDev, pollForModelContext, resolveModelContext, toError, warn } from './context'
 import { toErrorResponse, toToolResponse } from './normalize'
 import type {
@@ -74,38 +76,58 @@ const DESCRIPTION_BUDGET = 500
 const PARAM_DESCRIPTION_BUDGET = 150
 const OUTPUT_BUDGET = 1500
 
-// Advisory only (dev builds): mirrors the spec's name grammar and Chrome's
-// character budgets for descriptions. Never blocks registration.
-function validateDescriptor(descriptor: WebMCPToolDescriptor): void {
+type BudgetMode = NonNullable<WebMCPConfig['budgets']>
+
+// Mirrors the spec's name grammar and Chrome's character budgets. In 'warn'
+// mode (the development default) each problem is logged and registration
+// goes ahead; in 'error' mode the first registration with a problem throws,
+// so a test run or an end-to-end check fails on an oversized description.
+function validateDescriptor(descriptor: WebMCPToolDescriptor, mode: BudgetMode): void {
+  const problems: string[] = []
   if (!TOOL_NAME_PATTERN.test(descriptor.name)) {
-    warn(
+    problems.push(
       `tool name "${descriptor.name}" is outside the spec grammar (1-128 characters of [a-zA-Z0-9_.-]); browsers may reject it.`,
     )
   } else if (descriptor.name.length > NAME_BUDGET) {
-    warn(
+    problems.push(
       `tool name "${descriptor.name}" is ${descriptor.name.length} characters; Chrome's guidance is <= ${NAME_BUDGET}.`,
     )
   }
   if (descriptor.description.length > DESCRIPTION_BUDGET) {
-    warn(
+    problems.push(
       `tool "${descriptor.name}" has a ${descriptor.description.length}-character description; Chrome's guidance is <= ${DESCRIPTION_BUDGET}.`,
     )
   }
   const properties = (descriptor.inputSchema as { properties?: Record<string, unknown> } | undefined)
     ?.properties
-  if (!properties) return
-  for (const [param, schema] of Object.entries(properties)) {
+  for (const [param, schema] of Object.entries(properties ?? {})) {
     if (param.length > NAME_BUDGET) {
-      warn(
+      problems.push(
         `tool "${descriptor.name}" param "${param}" has a ${param.length}-character name; Chrome's guidance is <= ${NAME_BUDGET}.`,
       )
     }
     const description = (schema as { description?: unknown } | null)?.description
     if (typeof description === 'string' && description.length > PARAM_DESCRIPTION_BUDGET) {
-      warn(
+      problems.push(
         `tool "${descriptor.name}" param "${param}" has a ${description.length}-character description; Chrome's guidance is <= ${PARAM_DESCRIPTION_BUDGET}.`,
       )
     }
+  }
+  if (problems.length === 0) return
+  if (mode === 'error') throw new Error(`[vue-webmcp] ${problems.join(' ')}`)
+  for (const problem of problems) warn(problem)
+}
+
+const now = (): number =>
+  typeof performance !== 'undefined' ? performance.now() : Date.now()
+
+// A broken analytics hook must not break the tool call.
+function emit<T>(hook: ((event: T) => void) | undefined, event: T): void {
+  if (!hook) return
+  try {
+    hook(event)
+  } catch (err) {
+    if (isDev) warn(`a WebMCP hook threw: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
 
@@ -130,6 +152,11 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     error: readonly(error),
   }
 
+  // App-level hooks and budget mode, read once at setup from the nearest
+  // provider (none outside an injection context).
+  const config = injectWebMCPConfig()
+  const budgets: BudgetMode | false = config?.budgets ?? (isDev ? 'warn' : false)
+
   // Server render: stay inert. The same call in the client app registers the
   // tool after mount, so no hydration mismatch and no `document` access here.
   if (typeof window === 'undefined') {
@@ -142,24 +169,25 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   let warnedLegacy = false
   let warnedOutput = false
 
-  // Advisory, dev only, once per composable instance (a rename does not reset
-  // it; the output comes from the same execute). Chrome's guidance caps a
-  // successful tool result at 1.5K characters of text. Like the descriptor
-  // checks this counts UTF-16 code units, so astral characters count twice.
-  // A pass-through result is not validated, hence the optional chaining: the
-  // check must never turn a result the browser would accept into an error.
-  function checkOutputBudget(response: WebMCPToolResponse): void {
-    if (warnedOutput) return
+  // Chrome's guidance caps a successful tool result at 1.5K characters of
+  // text. In 'warn' mode this logs once per composable instance (a rename
+  // does not reset it; the output comes from the same execute); in 'error'
+  // mode the oversized result becomes an isError response. Like the
+  // descriptor checks this counts UTF-16 code units, so astral characters
+  // count twice. A pass-through result is not validated, hence the optional
+  // chaining: the check must never turn a result the browser would accept
+  // into a crash.
+  function checkOutputBudget(response: WebMCPToolResponse, mode: BudgetMode): void {
+    if (mode === 'warn' && warnedOutput) return
     const size = response.content.reduce(
       (total, block) => total + (typeof block?.text === 'string' ? block.text.length : 0),
       0,
     )
-    if (size > OUTPUT_BUDGET) {
-      warnedOutput = true
-      warn(
-        `tool "${toValue(options.name)}" returned ${size} characters of text; Chrome's guidance is <= ${OUTPUT_BUDGET} per call.`,
-      )
-    }
+    if (size <= OUTPUT_BUDGET) return
+    const message = `tool "${toValue(options.name)}" returned ${size} characters of text; Chrome's guidance is <= ${OUTPUT_BUDGET} per call.`
+    if (mode === 'error') throw new Error(`[vue-webmcp] ${message}`)
+    warnedOutput = true
+    warn(message)
   }
 
   // Only what the browser receives at registration re-registers the tool,
@@ -183,6 +211,11 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     const executeOptions = callOptions?.signal
       ? callOptions
       : { signal: new AbortController().signal }
+    const name = toValue(options.name)
+    const started = now()
+    // Arguments reach the hooks only when the app opted in.
+    const argsPayload = config?.includeArgs ? { args } : {}
+    emit(config?.onToolCall, { name, ...argsPayload })
     try {
       const result = await options.execute(args as Args, executeOptions)
       const shaped = options.formatOutput ? options.formatOutput(result, args as Args) : result
@@ -190,11 +223,27 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       // `onError`, then an `isError` result.
       if (shaped instanceof Error) throw shaped
       const response = toToolResponse(shaped)
-      if (isDev) checkOutputBudget(response)
+      if (budgets) checkOutputBudget(response, budgets)
+      emit(config?.onToolResult, {
+        name,
+        ok: !response.isError,
+        ms: now() - started,
+        response,
+        ...argsPayload,
+      })
       return response
     } catch (err) {
       options.onError?.(err)
-      return toErrorResponse(err)
+      const response = toErrorResponse(err)
+      emit(config?.onToolResult, {
+        name,
+        ok: false,
+        ms: now() - started,
+        response,
+        error: err,
+        ...argsPayload,
+      })
+      return response
     }
   }
 
@@ -258,7 +307,18 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       annotations: toValue(options.annotations),
       execute: runTool,
     }
-    if (isDev) validateDescriptor(descriptor)
+    if (budgets) {
+      try {
+        validateDescriptor(descriptor, budgets)
+      } catch (err) {
+        // 'error' mode after setup: a reactive change went over budget. Fail
+        // the registration into `error` rather than throwing from a watcher.
+        controller = null
+        isRegistered.value = false
+        error.value = toError(err)
+        return
+      }
+    }
 
     const exposedTo = toValue(options.exposedTo)
     const own = new AbortController()
@@ -292,6 +352,20 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     if (started) return
     started = true
     register()
+  }
+
+  // 'error' mode checks the initial definition here, synchronously in setup,
+  // so an over-budget tool fails fast, before anything mounts.
+  if (budgets === 'error') {
+    validateDescriptor(
+      {
+        name: toValue(options.name),
+        description: toValue(options.description),
+        inputSchema: toValue(options.inputSchema),
+        execute: runTool,
+      },
+      'error',
+    )
   }
 
   watch(registrationKey, () => {

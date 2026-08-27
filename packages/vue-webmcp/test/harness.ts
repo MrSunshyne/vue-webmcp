@@ -9,6 +9,8 @@
  */
 import { vi } from 'vitest'
 import { createApp, defineComponent, h } from 'vue'
+import { WEBMCP_CONFIG } from '../src/config'
+import type { WebMCPConfig } from '../src/config'
 import type {
   ExecuteToolOptions,
   GetToolsOptions,
@@ -90,7 +92,7 @@ export function cleanupModelContext(): void {
   delete host('navigator').modelContext
 }
 
-export function mountComposable<T>(setup: () => T) {
+export function mountComposable<T>(setup: () => T, options: { config?: WebMCPConfig } = {}) {
   let result: T | undefined
   const app = createApp(
     defineComponent({
@@ -100,6 +102,8 @@ export function mountComposable<T>(setup: () => T) {
       },
     }),
   )
+  // App-level config, the way a main.ts or a Nuxt plugin would provide it.
+  if (options.config) app.provide(WEBMCP_CONFIG, options.config)
   app.mount(document.createElement('div'))
   return { result: result as T, unmount: () => app.unmount() }
 }
