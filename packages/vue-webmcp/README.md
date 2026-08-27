@@ -128,8 +128,8 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 
 ### Reactivity rules
 
-- `name`, `title`, `description`, `inputSchema`, `annotations`, and `enabled` accept plain values, refs, or getters. Agent-visible changes re-register the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
-- `title` is what a user agent may show in its own UI (a permission prompt, an activity log); the agent itself reasons over `name` and `description`. Omit it and the browser picks its own label.
+- `name`, `title`, `description`, `inputSchema`, `annotations`, and `enabled` accept plain values, refs, or getters. Any change to them re-registers the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
+- `title` is a label the user agent may use when it refers to the tool in its own UI; agents work from `name` and `description`. Omit it and the user agent is free to display a value of its own. The spec recommends localizing it to the user's language.
 - `execute` is *not* reactive input and never triggers re-registration. It reads reactive state live at call time — `setup()` runs once in Vue, so there is no stale-closure problem and no ref-mirroring dance.
 - On the server (SSR) the composable is inert: no `document` access, `isSupported` stays `false`, registration happens after mount on the client. No hydration mismatch.
 
