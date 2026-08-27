@@ -16,12 +16,24 @@ export interface WebMCPToolAnnotations {
   untrustedContentHint?: boolean
 }
 
+export interface WebMCPToolExecuteOptions {
+  /** Aborted by the browser when the caller cancels the execution or goes away. */
+  signal: AbortSignal
+}
+
 export interface WebMCPToolDescriptor {
   name: string
   description: string
   inputSchema?: object
   annotations?: WebMCPToolAnnotations
-  execute: (args: unknown) => WebMCPToolResponse | PromiseLike<WebMCPToolResponse>
+  /**
+   * Chrome 153+ passes `options` with the execution signal; earlier builds
+   * call `execute` with the arguments alone.
+   */
+  execute: (
+    args: unknown,
+    options?: WebMCPToolExecuteOptions,
+  ) => WebMCPToolResponse | PromiseLike<WebMCPToolResponse>
 }
 
 export interface RegisterToolOptions {

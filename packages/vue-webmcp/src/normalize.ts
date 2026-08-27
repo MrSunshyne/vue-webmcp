@@ -44,14 +44,26 @@ export function toToolResponse(value: unknown): WebMCPToolResponse {
   return { content: [{ type: 'text', text: JSON.stringify(value) }] }
 }
 
+// Anything carrying a string `message` reads as an error: a DOMException in
+// some test environments or an error thrown in another realm fails
+// `instanceof Error` but still has the message the agent should see. The
+// read is guarded because a getter or a revoked Proxy can throw, and the
+// tool promise must resolve to an `isError` result regardless.
+function errorMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null
+  try {
+    const message = (error as { message?: unknown }).message
+    return typeof message === 'string' ? message : null
+  } catch {
+    return null
+  }
+}
+
 // Every failure becomes an explicit `isError` result, whatever was thrown —
 // a thrown string or plain object must not read as success to the agent.
 export function toErrorResponse(error: unknown): WebMCPToolResponse {
+  const message = errorMessage(error)
   const text =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : safeStringify(error)
+    message !== null ? message : typeof error === 'string' ? error : safeStringify(error)
   return { content: [{ type: 'text', text }], isError: true }
 }

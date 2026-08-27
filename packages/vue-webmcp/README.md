@@ -112,7 +112,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
   description,    // MaybeRefOrGetter<string> — natural-language description for the agent (required)
   inputSchema,    // MaybeRefOrGetter<object> — JSON Schema for the args (optional)
   annotations,    // MaybeRefOrGetter<{ readOnlyHint?, untrustedContentHint? }> (optional)
-  execute,        // (args) => result | Promise<result> (required)
+  execute,        // (args, { signal }) => result | Promise<result> (required)
   enabled,        // MaybeRefOrGetter<boolean> — register only while true (default true)
   formatOutput,   // (result, args) => any — optional shaper before MCP normalization
   onError,        // (error) => void — side effect when execute throws
@@ -131,6 +131,19 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 - `execute` is *not* reactive input and never triggers re-registration. It reads reactive state live at call time — `setup()` runs once in Vue, so there is no stale-closure problem and no ref-mirroring dance.
 - On the server (SSR) the composable is inert: no `document` access, `isSupported` stays `false`, registration happens after mount on the client. No hydration mismatch.
 
+### Cancellation
+
+`execute` receives `(args, { signal })`. The browser aborts `signal` when the caller cancels the execution or goes away (Chrome 153+), so pass it to `fetch` and check it in long-running work:
+
+```ts
+async execute({ query }, { signal }) {
+  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal })
+  return response.json()
+}
+```
+
+Inside the composable an abort is a failure like any other: `onError` runs and `execute` resolves to an `isError` result. The caller that cancelled has already received the abort reason and does not see that result. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined.
+
 ### Result normalization
 
 Whatever `execute` returns is normalized to an MCP tool result, identically to `use-webmcp-tool`:
@@ -139,7 +152,7 @@ Whatever `execute` returns is normalized to an MCP tool result, identically to `
 - **`undefined`/`null`** → `{ content: [] }` (success, no payload)
 - a value already shaped as `{ content: [...] }` → passed through untouched
 - anything else (object/array/number) → JSON-serialized into a text block
-- a **thrown value** — Error or not (`throw "not signed in"`, `throw { code: 403 }`) → `{ content: [...], isError: true }`, after `onError`. A failure must never read as success to the agent.
+- a **thrown value** — Error or not (`throw "not signed in"`, `throw { code: 403 }`) → `{ content: [...], isError: true }`, after `onError`. Errors and objects with a string `message` (an error thrown in another realm, a structured-cloned error) supply that message; strings pass through; anything else is JSON-serialized. A failure must never read as success to the agent.
 - a **returned `Error`** → treated exactly like a throw
 
 ## Security notes
