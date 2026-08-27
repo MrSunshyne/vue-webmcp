@@ -90,9 +90,25 @@ routeRules: {
 },
 ```
 
-### Hooks and budgets
+### Budgets
 
-App-level [configuration](../vue-webmcp#configuration-hooks-and-budgets) (call hooks, the budget mode) is a Vue provide, so a plugin is the place for it:
+The [character-budget checks](../vue-webmcp#configuration-hooks-and-budgets) warn in development and are off in production. To make them fail a test run instead, set the mode in the module options or, per environment, through runtime config:
+
+```ts
+webmcp: {
+  budgets: 'error', // 'warn' | 'error' | false
+},
+```
+
+```sh
+NUXT_PUBLIC_WEBMCP_BUDGETS=error
+```
+
+In `'error'` mode an over-budget tool fails its component's setup in the browser (a thrown error in a dev or test build; the server never validates), and an oversized result becomes an `isError` response.
+
+### Hooks
+
+The call hooks from the same [configuration](../vue-webmcp#configuration-hooks-and-budgets) are functions, so they go in a plugin of your own. Providing `WEBMCP_CONFIG` there replaces what the module provided, so include `budgets` as well if you use both:
 
 ```ts
 // plugins/webmcp.ts
