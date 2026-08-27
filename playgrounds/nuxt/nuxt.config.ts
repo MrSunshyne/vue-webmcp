@@ -5,7 +5,7 @@ export default defineNuxtConfig({
     // https://developer.chrome.com/docs/ai/webmcp and put the token here.
     // At deploy time, set NUXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN instead (comma-separated for several).
     // Locally, chrome://flags/#enable-webmcp-testing needs no token at all.
-    originTrialToken: process.env.WEBMCP_BUILD_TOKENS?.split(','),
+    originTrialToken: process.env.WEBMCP_OT_TOKEN?.split(','),
   },
   compatibilityDate: '2026-08-01',
 })

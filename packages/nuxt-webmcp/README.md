@@ -25,7 +25,7 @@ export default defineNuxtConfig({
 
 Register your origin at [developer.chrome.com/docs/ai/webmcp](https://developer.chrome.com/docs/ai/webmcp) and hand the token to the module in one of two ways.
 
-At deploy time, through runtime config, so one build can serve staging and production with different tokens:
+At deploy time, through runtime config, so one server build can serve staging and production with different tokens (a prerendered site reads the value when `nuxt generate` runs):
 
 ```sh
 NUXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN="token-for-this-origin"   # several: comma-separated
@@ -44,7 +44,7 @@ At build time, baked into the bundle:
 
 ```ts
 webmcp: {
-  originTrialToken: process.env.WEBMCP_OT_TOKEN, // or an array
+  originTrialToken: process.env.WEBMCP_OT_TOKEN?.split(','), // one or several
 },
 ```
 
