@@ -211,6 +211,24 @@ describe('registration errors', () => {
     expect(result.isRegistered.value).toBe(false)
     expect(result.error.value?.message).toBe('nope')
   })
+
+  it('surfaces the SecurityError a browser rejects an insecure exposedTo origin with', async () => {
+    const { registerTool } = installFakeModelContext()
+    registerTool.mockImplementation(() =>
+      Promise.reject(new DOMException('bad origin', 'SecurityError')),
+    )
+    const { result } = mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        exposedTo: ['http://insecure.example'],
+        execute: () => 'ok',
+      }),
+    )
+
+    await nextTick()
+    expect(result.isRegistered.value).toBe(false)
+    expect(result.error.value?.name).toBe('SecurityError')
+  })
 })
 
 describe('re-registration identity', () => {

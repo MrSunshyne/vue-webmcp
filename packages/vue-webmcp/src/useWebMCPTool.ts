@@ -30,10 +30,10 @@ export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = u
   annotations?: MaybeRefOrGetter<WebMCPToolAnnotations | undefined>
   /**
    * Secure origins (for example an iframe-hosted agent) that may discover and
-   * call the tool, in addition to same-origin documents and the browser's own
-   * agent.
+   * call the tool, in addition to the registering page, its same-origin
+   * frames, and the browser's own agent.
    */
-  exposedTo?: MaybeRefOrGetter<string[] | undefined>
+  exposedTo?: MaybeRefOrGetter<readonly string[] | undefined>
   /**
    * Runs when the agent invokes the tool. Reads reactive state live at call
    * time; swapping the function never re-registers the tool.
@@ -272,9 +272,10 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     const own = new AbortController()
     controller = own
     try {
+      // Copy so the browser gets a plain array, not a reactive proxy.
       const result = resolved.context.registerTool(descriptor, {
         signal: own.signal,
-        ...(exposedTo !== undefined ? { exposedTo } : {}),
+        ...(exposedTo !== undefined ? { exposedTo: [...exposedTo] } : {}),
       })
       // The spec makes registerTool promise-returning; surface an async
       // rejection instead of leaving it unhandled.
