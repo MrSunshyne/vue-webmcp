@@ -21,7 +21,9 @@ export function defineWebMCPTool<
   return definition
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// `any` on purpose: one list holds tools with different Args and Result
+// types, and `unknown` would reject every typed `execute` under
+// strictFunctionTypes.
 type AnyToolOptions = UseWebMCPToolOptions<any, any>
 
 /** Options applied to every tool in the group unless the tool sets its own. */
@@ -41,7 +43,11 @@ type ToolNames<T extends readonly AnyToolOptions[]> = T[number]['name'] extends 
 export interface UseWebMCPToolsReturn<Names extends string = string> {
   /** A modelContext API exists in this environment. */
   isSupported: Readonly<Ref<boolean>>
-  /** Every tool in the group is currently registered. */
+  /**
+   * Every enabled tool in the group is registered. Tools switched off through
+   * `enabled` are left out, so a group with its read tools on and its write
+   * tools off still counts as registered; `false` while no tool is enabled.
+   */
   isRegistered: Readonly<Ref<boolean>>
   /** The first registration failure in the group, if any. */
   error: Readonly<Ref<Error | null>>
@@ -49,41 +55,52 @@ export interface UseWebMCPToolsReturn<Names extends string = string> {
   byName: Readonly<Record<Names, UseWebMCPToolReturn>>
 }
 
+interface Entry {
+  enabled: MaybeRefOrGetter<boolean> | undefined
+  state: UseWebMCPToolReturn
+}
+
 /**
  * Registers a group of tools from one component or scope, with options
  * shared across the group. Each tool still goes through `useWebMCPTool`, so
  * per-tool `enabled`, `annotations`, `exposedTo` and `onError` win over the
- * shared ones, and the per-tool state stays reachable through `byName`.
+ * shared ones, the per-tool state stays reachable through `byName`, and one
+ * tool failing to register leaves the others registered.
  */
 export function useWebMCPTools<const T extends readonly AnyToolOptions[]>(
   definitions: T,
   shared: UseWebMCPToolsSharedOptions = {},
 ): UseWebMCPToolsReturn<ToolNames<T>> {
-  const byName = {} as Record<string, UseWebMCPToolReturn>
+  // No prototype: a tool may legitimately be named "constructor" or "__proto__".
+  const byName: Record<string, UseWebMCPToolReturn> = Object.create(null)
+  const entries: Entry[] = []
 
   for (const definition of definitions) {
     const name = toValue(definition.name)
     if (isDev && name in byName) {
       warn(`useWebMCPTools() received the tool name "${name}" twice; the browser rejects duplicate registrations.`)
     }
+    const enabled = definition.enabled ?? shared.enabled
     const { onError } = definition
     const merged: AnyToolOptions = {
       ...definition,
-      enabled: definition.enabled ?? shared.enabled,
+      enabled,
       annotations: definition.annotations ?? shared.annotations,
       exposedTo: definition.exposedTo ?? shared.exposedTo,
       onError:
         onError ?? (shared.onError ? error => shared.onError!(error, toValue(definition.name)) : undefined),
     }
-    byName[name] = useWebMCPTool(merged)
+    const state = useWebMCPTool(merged)
+    byName[name] = state
+    entries.push({ enabled, state })
   }
 
-  const states = Object.values(byName)
-  const isSupported = computed(() => states.some(state => state.isSupported.value))
-  const isRegistered = computed(
-    () => states.length > 0 && states.every(state => state.isRegistered.value),
-  )
-  const error = computed(() => states.map(state => state.error.value).find(Boolean) ?? null)
+  const isSupported = computed(() => entries.some(entry => entry.state.isSupported.value))
+  const isRegistered = computed(() => {
+    const active = entries.filter(entry => toValue(entry.enabled ?? true))
+    return active.length > 0 && active.every(entry => entry.state.isRegistered.value)
+  })
+  const error = computed(() => entries.map(entry => entry.state.error.value).find(Boolean) ?? null)
 
   return {
     isSupported: readonly(isSupported),

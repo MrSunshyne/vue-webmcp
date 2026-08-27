@@ -57,12 +57,14 @@ describe('useWebMCPTools', () => {
       }),
     )
 
-    // add_note sets its own enabled, so it registers straight away.
+    // add_note sets its own enabled, so it registers straight away, and the
+    // disabled search_notes does not count against the group.
     expect([...tools.keys()]).toEqual(['add_note'])
-    expect(result.isRegistered.value).toBe(false)
+    expect(result.isRegistered.value).toBe(true)
 
     loaded.value = true
     await nextTick()
+    expect(tools.size).toBe(2)
     expect(result.isRegistered.value).toBe(true)
 
     const search = registerTool.mock.calls.find(call => call[0].name === 'search_notes')!
@@ -71,6 +73,38 @@ describe('useWebMCPTools', () => {
     expect(search[1]?.exposedTo).toEqual(['https://agent.example'])
     const add = registerTool.mock.calls.find(call => call[0].name === 'add_note')!
     expect(add[0].annotations).toEqual({ untrustedContentHint: true })
+  })
+
+  it('lets a tool switch itself off under a shared enabled, and a shared false switch the rest off', () => {
+    const { tools } = installFakeModelContext()
+    const { result } = mountComposable(() =>
+      useWebMCPTools([{ ...searchNotes, enabled: false }, addNote], { enabled: true }),
+    )
+    expect([...tools.keys()]).toEqual(['add_note'])
+    expect(result.isRegistered.value).toBe(true)
+
+    const off = mountComposable(() =>
+      useWebMCPTools([{ ...addNote, name: 'off_note' }], { enabled: false }),
+    )
+    expect(tools.has('off_note')).toBe(false)
+    expect(off.result.isRegistered.value).toBe(false)
+  })
+
+  it('handles tools named after Object.prototype members', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tools } = installFakeModelContext()
+    const { result } = mountComposable(() =>
+      useWebMCPTools([
+        { name: 'constructor', description: 'C', execute: () => 'ok' },
+        { name: '__proto__', description: 'P', execute: () => 'ok' },
+      ]),
+    )
+
+    expect(warnSpy).not.toHaveBeenCalled()
+    expect([...tools.keys()].sort()).toEqual(['__proto__', 'constructor'])
+    expect(result.byName.constructor.isRegistered.value).toBe(true)
+    expect(result.byName.__proto__.isRegistered.value).toBe(true)
+    expect(result.isRegistered.value).toBe(true)
   })
 
   it('routes failures to the shared onError with the tool name, unless the tool has its own', async () => {
