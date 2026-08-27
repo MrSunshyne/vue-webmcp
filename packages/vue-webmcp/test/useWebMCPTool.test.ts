@@ -357,6 +357,27 @@ describe('error normalization', () => {
     })
   })
 
+  it('still yields an isError result when reading message throws', async () => {
+    const { tools } = installFakeModelContext()
+    const hostile = {
+      get message(): string {
+        throw new Error('no access')
+      },
+    }
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: () => {
+          throw hostile
+        },
+      }),
+    )
+
+    const response = await invoke(tools, 'add-todo')
+    expect(response.isError).toBe(true)
+    expect(typeof response.content[0]?.text).toBe('string')
+  })
+
   it('treats a returned Error exactly like a thrown one', async () => {
     const { tools } = installFakeModelContext()
     const onError = vi.fn()
@@ -387,29 +408,41 @@ describe('error normalization', () => {
 describe('execute options and signal', () => {
   it('forwards args and the browser-provided options to execute', async () => {
     const { tools } = installFakeModelContext()
-    const execute = vi.fn((args: { text: string }) => `done: ${args.text}`)
+    const execute = vi.fn(
+      (args: { text: string }, _options: WebMCPToolExecuteOptions) => `done: ${args.text}`,
+    )
     mountComposable(() => useWebMCPTool({ ...baseOptions, execute }))
 
     const controller = new AbortController()
     const options = { signal: controller.signal }
     const response = await invoke(tools, 'add-todo', { text: 'buy milk' }, options)
 
-    expect(execute).toHaveBeenCalledWith({ text: 'buy milk' }, options)
+    // Identity, not equality: two distinct AbortSignals compare equal.
+    expect(execute.mock.calls[0]![0]).toEqual({ text: 'buy milk' })
+    expect(execute.mock.calls[0]![1]).toBe(options)
     expect(response).toEqual({ content: [{ type: 'text', text: 'done: buy milk' }] })
   })
 
-  it('supplies a signal that never aborts when the browser passes no options', async () => {
-    const { tools } = installFakeModelContext()
-    const execute = vi.fn((_args: unknown, { signal }: WebMCPToolExecuteOptions) =>
-      signal.aborted ? 'aborted' : 'live',
-    )
-    mountComposable(() => useWebMCPTool({ ...baseOptions, execute }))
+  it.each([undefined, {}, { signal: undefined }, null])(
+    'supplies a signal that never aborts when the browser passes %o',
+    async callOptions => {
+      const { tools } = installFakeModelContext()
+      const execute = vi.fn((_args: unknown, { signal }: WebMCPToolExecuteOptions) =>
+        signal.aborted ? 'aborted' : 'live',
+      )
+      mountComposable(() => useWebMCPTool({ ...baseOptions, execute }))
 
-    const response = await invoke(tools, 'add-todo')
+      const response = await invoke(
+        tools,
+        'add-todo',
+        {},
+        callOptions as WebMCPToolExecuteOptions | undefined,
+      )
 
-    expect(execute.mock.calls[0]![1].signal).toBeInstanceOf(AbortSignal)
-    expect(response.content[0]?.text).toBe('live')
-  })
+      expect(execute.mock.calls[0]![1].signal).toBeInstanceOf(AbortSignal)
+      expect(response.content[0]?.text).toBe('live')
+    },
+  )
 
   it('lets execute observe an abort during execution', async () => {
     const { tools } = installFakeModelContext()
@@ -433,6 +466,8 @@ describe('execute options and signal', () => {
     })
   })
 
+  // jsdom's DOMException is not an instanceof Error, so this also pins the
+  // Error-like handling in toErrorResponse: without it the text would be "{}".
   it('reports an AbortError from signal.throwIfAborted() through onError', async () => {
     const { tools } = installFakeModelContext()
     const onError = vi.fn()
