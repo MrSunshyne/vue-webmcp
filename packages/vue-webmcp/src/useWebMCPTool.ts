@@ -16,10 +16,14 @@ import type {
   WebMCPToolAnnotations,
   WebMCPToolDescriptor,
   WebMCPToolExecuteOptions,
+  WebMCPToolResponse,
 } from './types'
 
 export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = unknown> {
-  /** Tool identifier the agent sees. 1–128 characters of `[a-zA-Z0-9_.-]`. */
+  /**
+   * Tool identifier the agent sees. 1–128 characters of `[a-zA-Z0-9_.-]`;
+   * Chrome's guidance is to keep it under 30.
+   */
   name: MaybeRefOrGetter<string>
   /** Human-readable label for user-agent UI. Agents reason over `name` and `description`. */
   title?: MaybeRefOrGetter<string | null | undefined>
@@ -68,8 +72,12 @@ const LATE_INJECTION_INTERVAL_MS = 500
 const LATE_INJECTION_MAX_ATTEMPTS = 20
 
 const TOOL_NAME_PATTERN = /^[\w.-]{1,128}$/
+// Chrome's guidance for what a model reads well:
+// https://developer.chrome.com/docs/ai/webmcp/secure-tools
+const NAME_BUDGET = 30
 const DESCRIPTION_BUDGET = 500
 const PARAM_DESCRIPTION_BUDGET = 150
+const OUTPUT_BUDGET = 1500
 
 // No dependency on node types: bundlers statically replace
 // `process.env.NODE_ENV`, and the typeof guard keeps bundler-less browsers safe.
@@ -115,6 +123,10 @@ function validateDescriptor(descriptor: WebMCPToolDescriptor): void {
     warn(
       `tool name "${descriptor.name}" is outside the spec grammar (1-128 characters of [a-zA-Z0-9_.-]); browsers may reject it.`,
     )
+  } else if (descriptor.name.length > NAME_BUDGET) {
+    warn(
+      `tool name "${descriptor.name}" is ${descriptor.name.length} characters; Chrome's guidance is <= ${NAME_BUDGET}.`,
+    )
   }
   if (descriptor.description.length > DESCRIPTION_BUDGET) {
     warn(
@@ -125,6 +137,11 @@ function validateDescriptor(descriptor: WebMCPToolDescriptor): void {
     ?.properties
   if (!properties) return
   for (const [param, schema] of Object.entries(properties)) {
+    if (param.length > NAME_BUDGET) {
+      warn(
+        `tool "${descriptor.name}" param "${param}" has a ${param.length}-character name; Chrome's guidance is <= ${NAME_BUDGET}.`,
+      )
+    }
     const description = (schema as { description?: unknown } | null)?.description
     if (typeof description === 'string' && description.length > PARAM_DESCRIPTION_BUDGET) {
       warn(
@@ -165,6 +182,23 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let started = false
   let warnedLegacy = false
+  let warnedOutput = false
+
+  // Advisory, dev only, once per tool: Chrome's guidance caps a single tool
+  // output at 1.5K characters of text.
+  function checkOutputBudget(response: WebMCPToolResponse): void {
+    if (warnedOutput) return
+    const size = response.content.reduce(
+      (total, block) => total + (typeof block.text === 'string' ? block.text.length : 0),
+      0,
+    )
+    if (size > OUTPUT_BUDGET) {
+      warnedOutput = true
+      warn(
+        `tool "${toValue(options.name)}" returned ${size} characters of text; Chrome's guidance is <= ${OUTPUT_BUDGET} per call.`,
+      )
+    }
+  }
 
   // Only what the browser receives at registration re-registers the tool,
   // compared by content so inline object literals and reactive sources don't
@@ -193,7 +227,9 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       // A returned Error gets the same treatment as a thrown one:
       // `onError`, then an `isError` result.
       if (shaped instanceof Error) throw shaped
-      return toToolResponse(shaped)
+      const response = toToolResponse(shaped)
+      if (isDev) checkOutputBudget(response)
+      return response
     } catch (err) {
       options.onError?.(err)
       return toErrorResponse(err)
