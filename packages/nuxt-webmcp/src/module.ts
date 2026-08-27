@@ -42,17 +42,14 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
     if (tokens.length > 0) {
       const head = nuxt.options.app.head
       head.meta ||= []
-      type MetaEntry = (typeof head.meta)[number]
-      tokens.forEach((content, index) => {
-        // Keyed so several tokens survive unhead's dedupe, which otherwise
-        // keeps only the last <meta http-equiv="origin-trial">. The cast is
-        // because "origin-trial" is not in unhead's httpEquiv union.
-        head.meta!.push({
-          key: `webmcp-origin-trial-${index}`,
-          'http-equiv': 'origin-trial',
-          content,
-        } as unknown as MetaEntry)
-      })
+      // `key` keeps several tokens apart: unhead dedupes <meta http-equiv>
+      // by name and would otherwise keep only the last one. `data-hid` is
+      // what the client uses to find the server-rendered element again, so
+      // without it hydration appends a second copy of each tag.
+      for (const [index, content] of tokens.entries()) {
+        const key = `webmcp-origin-trial-${index}`
+        head.meta.push({ key, 'data-hid': key, 'http-equiv': 'origin-trial', content })
+      }
     }
 
     // Runtime tokens: a default so NUXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN maps
