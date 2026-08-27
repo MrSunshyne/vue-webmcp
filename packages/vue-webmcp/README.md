@@ -269,6 +269,41 @@ Same lifecycle as `useWebMCPTool`: inert on the server, starts after mount in a 
 
 Three transitional details are handled for you. Arguments go over as the JSON string Chrome shipped with, and switch to the object form the spec adopted once the browser rejects the string with a `TypeError`; a string handed to an object parameter fails before the tool runs, so nothing ever runs twice, and `argumentFormat` skips the detection. A stringified `inputSchema` from an older `getTools()` is parsed back into an object. Results come back parsed whether the browser returns JSON text (spec) or a polyfill returns the value itself; a polyfill returning a plain string that happens to be valid JSON is parsed too.
 
+## Declarative forms: `useWebMCPForm()`
+
+Chrome's [declarative API](https://developer.chrome.com/docs/ai/webmcp/declarative-api) turns a `<form toolname="…">` into a tool: the browser synthesizes the input schema from the fields, an agent fills them in and submits, and the page answers through `SubmitEvent.respondWith()`. `useWebMCPForm()` does the wiring, and the same handler serves a person clicking Submit:
+
+```vue
+<script setup lang="ts">
+import { useWebMCPForm } from 'vue-webmcp'
+
+const { attrs, isAgentActive, isSubmitting, error } = useWebMCPForm({
+  name: 'add_note',
+  description: 'Add a note to the list',
+  async execute({ text }) {
+    await addNote(String(text))
+    return `Added "${text}".`
+  },
+})
+</script>
+
+<template>
+  <form v-bind="attrs" :class="{ 'agent-active': isAgentActive }">
+    <input name="text" toolparamdescription="The note" required />
+    <button type="submit" :disabled="isSubmitting">Add</button>
+    <p v-if="error">{{ error.message }}</p>
+  </form>
+</template>
+```
+
+`attrs` carries `toolname`, `tooldescription`, `toolautosubmit` (with `autosubmit: true`) and the submit handler. `execute` receives the fields as `FormData` entries (a string, a `File` for a file input, or an array when a name repeats, as with a checkbox group or `<select multiple>`) and the `SubmitEvent`; its return value is normalized like a `useWebMCPTool` result and handed to the agent when one asked, so a failure becomes an `isError` result rather than a rejected promise. A failure also lands in `error` and runs `onError`, so the page can show it.
+
+The handler calls `preventDefault()` itself, which the spec requires before `respondWith()`, so the form's `action` never navigates: the handler is the submission, for people and agents alike. Once an agent has filled the form in, the person's click on Submit arrives with `agentInvoked` set and completes the tool call. The app-level [call hooks](#configuration-hooks-and-budgets) see form submissions too, under the form's `toolname`; the character-budget checks do not apply, since the browser derives a form tool's description from its attributes.
+
+`isAgentActive` follows the `toolactivated` / `toolcancel` events for this form's tool name, so you can bind a class instead of the `:tool-form-active` pseudo-class, which some CSS toolchains reject as unknown.
+
+`SubmitEvent.agentInvoked` / `respondWith()` and the `WebMCPEvent` behind `toolactivated` / `toolcancel` are declared by this package, with the shapes Chromium implements, until `webmcp-types` covers the declarative API.
+
 ## Configuration: hooks and budgets
 
 App-level settings reach every `useWebMCPTool` call through Vue's provide/inject, read once when each tool is set up. Provide once, at the root:

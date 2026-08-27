@@ -33,6 +33,7 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
       { name: 'useWebMCPTool', from: 'vue-webmcp' },
       { name: 'useWebMCPTools', from: 'vue-webmcp' },
       { name: 'defineWebMCPTool', from: 'vue-webmcp' },
+      { name: 'useWebMCPForm', from: 'vue-webmcp' },
       { name: 'useRegisteredTools', from: 'vue-webmcp' },
     ])
 

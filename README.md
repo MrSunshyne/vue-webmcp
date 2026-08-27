@@ -34,7 +34,7 @@ More WebMCP demos, including a [Trip Splitter](https://mrsunshyne.github.io/webm
 
 | package | what it is |
 | --- | --- |
-| [`vue-webmcp`](packages/vue-webmcp) | The composables: `useWebMCPTool()` and `useWebMCPTools()` to register tools, `useRegisteredTools()` to discover and call them. Vue 3.3+, SSR-safe, no runtime dependencies. |
+| [`vue-webmcp`](packages/vue-webmcp) | The composables: `useWebMCPTool()` and `useWebMCPTools()` to register tools, `useWebMCPForm()` for the declarative form API, `useRegisteredTools()` to discover and call tools. Vue 3.3+, SSR-safe, no runtime dependencies. |
 | [`nuxt-webmcp`](packages/nuxt-webmcp) | Nuxt module: auto-imports, origin-trial token injection, Permissions-Policy recipes. |
 
 Behavioral counterpart to [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool) (React, GoogleChromeLabs) — agents observe identical registration and result semantics from both.

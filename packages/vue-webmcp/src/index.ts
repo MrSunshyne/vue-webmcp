@@ -8,6 +8,14 @@ export type {
   UseRegisteredToolsOptions,
   UseRegisteredToolsReturn,
 } from './useRegisteredTools'
+export { useWebMCPForm } from './declarative'
+export type {
+  FormFieldValue,
+  FormFields,
+  UseWebMCPFormOptions,
+  UseWebMCPFormReturn,
+  WebMCPFormAttrs,
+} from './declarative'
 export { WEBMCP_CONFIG, provideWebMCPConfig } from './config'
 export type { WebMCPConfig, WebMCPToolCallEvent, WebMCPToolResultEvent } from './config'
 export { toErrorResponse, toToolResponse } from './normalize'

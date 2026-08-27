@@ -2,7 +2,7 @@
 
 Nuxt module for [WebMCP](https://github.com/webmachinelearning/webmcp). Wraps [`vue-webmcp`](../vue-webmcp) with the Nuxt-specific plumbing:
 
-- **Auto-imports** `useWebMCPTool`, `useWebMCPTools`, `defineWebMCPTool` and `useRegisteredTools` in components, composables, and stores.
+- **Auto-imports** `useWebMCPTool`, `useWebMCPTools`, `defineWebMCPTool`, `useWebMCPForm` and `useRegisteredTools` in components, composables, and stores.
 - **Origin-trial token injection** — WebMCP is in origin trial in Chrome (149→156) and Edge (from 150); without a token on your origin (or the local `chrome://flags/#enable-webmcp-testing` flag) the API simply doesn't exist. The module injects your tokens as `<meta http-equiv="origin-trial">`, from the build config or from runtime config at deploy time.
 - **SSR-safe by construction** — the composable is inert during server rendering and registers tools after mount on the client. No `import.meta.client` guards needed in your code.
 

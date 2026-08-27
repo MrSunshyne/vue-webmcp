@@ -146,6 +146,7 @@ describe('useWebMCPTools', () => {
     const { registerTool } = installFakeModelContext()
     registerTool.mockImplementation(tool => {
       if (tool.name === 'add_note') throw new DOMException('denied', 'NotAllowedError')
+      return Promise.resolve()
     })
     const { result } = mountComposable(() => useWebMCPTools([searchNotes, addNote]))
 
