@@ -98,10 +98,8 @@ useWebMCPTool({
       </p>
     </section>
 
-    <!-- Discovery also happens after hydration -->
-    <ClientOnly>
-      <RegisteredTools />
-    </ClientOnly>
+    <!-- Renders its empty state on the server and fills in after mount; no ClientOnly needed -->
+    <RegisteredTools />
   </main>
 </template>
 

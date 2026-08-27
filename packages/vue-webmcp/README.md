@@ -186,21 +186,21 @@ async function search(query: string) {
 ```ts
 const { isSupported, tools, error, refresh, execute } = useRegisteredTools({
   fromOrigins,    // MaybeRefOrGetter<string[]> — secure origins whose tools to include (optional)
-  argumentFormat, // 'object' (spec, default) | 'json' for Chrome builds that predate the object form
+  argumentFormat, // 'object' | 'json' — skip the detection described below (optional)
 })
 ```
 
 | return | type | meaning |
 | --- | --- | --- |
 | `isSupported` | `Readonly<Ref<boolean>>` | `getTools()` and `executeTool()` exist here. A registration-only polyfill leaves this `false`. |
-| `tools` | `Readonly<ShallowRef<readonly RegisteredTool[]>>` | The spec's `RegisteredTool` dictionaries (`name`, `title`, `description`, `inputSchema`, `annotations`, `origin`, `window`), in the browser's order, refreshed on `toolchange`. |
+| `tools` | `Readonly<ShallowRef<readonly RegisteredTool[]>>` | The spec's `RegisteredTool` dictionaries (`name`, `title`, `description`, `inputSchema`, `annotations`, `origin`, `window`), sorted by name, refreshed on `toolchange`. |
 | `error` | `Readonly<Ref<Error \| null>>` | Failure of the last `getTools()` call. |
-| `refresh` | `() => Promise<void>` | Query again by hand. |
-| `execute` | `(tool, args?, { signal }?) => Promise<unknown>` | Run a tool. Resolves with its result parsed from the JSON the browser returns; pass a `signal` to cancel. |
+| `refresh` | `() => Promise<void>` | Query again by hand. A failure lands in `error`. |
+| `execute` | `(tool, args?, { signal }?) => Promise<unknown>` | Run a tool. Resolves with its result parsed from the JSON the browser returns; pass a `signal` to cancel. Rejects with the browser's `DOMException` when the tool or the browser fails, and with a `NotSupportedError` when the API is absent. |
 
-Same lifecycle as `useWebMCPTool`: inert on the server, starts after mount in a component or immediately in a store or `effectScope`, waits up to 10 s for a late-injected API, and stops listening on scope disposal. Cross-origin tools need the other page to list your origin in `exposedTo` and you to list theirs in `fromOrigins`; the browser checks both before running anything.
+Same lifecycle as `useWebMCPTool`: inert on the server, starts after mount in a component or immediately in a store or `effectScope`, waits up to 10 s for a late-injected API, and goes inert on scope disposal. Cross-origin tools need the other page to list your origin in `exposedTo` and you to list theirs in `fromOrigins`; the browser checks both before running anything.
 
-Two transitional details are handled for you: a stringified `inputSchema` from an older `getTools()` is parsed back into an object, and results come back parsed whether the browser returns JSON text (spec) or a polyfill returns the value itself.
+Three transitional details are handled for you. Arguments go over as the JSON string Chrome shipped with, and switch to the object form the spec adopted once the browser rejects the string with a `TypeError`; a string handed to an object parameter fails before the tool runs, so nothing ever runs twice, and `argumentFormat` skips the detection. A stringified `inputSchema` from an older `getTools()` is parsed back into an object. Results come back parsed whether the browser returns JSON text (spec) or a polyfill returns the value itself; a polyfill returning a plain string that happens to be valid JSON is parsed too.
 
 ## Security notes
 
