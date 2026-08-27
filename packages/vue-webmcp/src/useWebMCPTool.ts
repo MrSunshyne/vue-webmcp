@@ -22,7 +22,7 @@ import type {
 export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = unknown> {
   /**
    * Tool identifier the agent sees. 1–128 characters of `[a-zA-Z0-9_.-]`;
-   * Chrome's guidance is to keep it under 30.
+   * Chrome's guidance is at most 30.
    */
   name: MaybeRefOrGetter<string>
   /** Human-readable label for user-agent UI. Agents reason over `name` and `description`. */
@@ -184,12 +184,16 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   let warnedLegacy = false
   let warnedOutput = false
 
-  // Advisory, dev only, once per tool: Chrome's guidance caps a single tool
-  // output at 1.5K characters of text.
+  // Advisory, dev only, once per composable instance (a rename does not reset
+  // it; the output comes from the same execute). Chrome's guidance caps a
+  // successful tool result at 1.5K characters of text. Like the descriptor
+  // checks this counts UTF-16 code units, so astral characters count twice.
+  // A pass-through result is not validated, hence the optional chaining: the
+  // check must never turn a result the browser would accept into an error.
   function checkOutputBudget(response: WebMCPToolResponse): void {
     if (warnedOutput) return
     const size = response.content.reduce(
-      (total, block) => total + (typeof block.text === 'string' ? block.text.length : 0),
+      (total, block) => total + (typeof block?.text === 'string' ? block.text.length : 0),
       0,
     )
     if (size > OUTPUT_BUDGET) {

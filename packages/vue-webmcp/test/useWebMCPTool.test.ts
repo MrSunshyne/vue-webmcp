@@ -647,6 +647,42 @@ describe('dev-mode descriptor warnings', () => {
     expect(messages).toHaveLength(1)
   })
 
+  it('does not touch a pass-through result while measuring it', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tools } = installFakeModelContext()
+    const onError = vi.fn()
+    // A null element is not valid MCP, but toToolResponse passes it through
+    // and the dev-only check must not turn that into an error result.
+    const shaped = { content: [null, { type: 'text', text: 'x' }] } as unknown as WebMCPToolResponse
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute: () => shaped, onError }))
+
+    expect(await invoke(tools, 'add-todo')).toBe(shaped)
+    expect(onError).not.toHaveBeenCalled()
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet exactly at the budgets and ignores non-text blocks', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tools } = installFakeModelContext()
+    const name = 'n'.repeat(30)
+    mountComposable(() =>
+      useWebMCPTool({
+        name,
+        description: 'ok',
+        inputSchema: { type: 'object', properties: { ['p'.repeat(30)]: { type: 'string' } } },
+        execute: () => ({
+          content: [
+            { type: 'image', data: 'd'.repeat(5000) },
+            { type: 'text', text: 'z'.repeat(1500) },
+          ],
+        }),
+      }),
+    )
+
+    await invoke(tools, name)
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
   it('warns on an over-budget param description', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     installFakeModelContext()
