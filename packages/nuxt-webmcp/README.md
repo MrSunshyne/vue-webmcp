@@ -3,7 +3,7 @@
 Nuxt module for [WebMCP](https://github.com/webmachinelearning/webmcp). Wraps [`vue-webmcp`](../vue-webmcp) with the Nuxt-specific plumbing:
 
 - **Auto-imports** `useWebMCPTool` and `useRegisteredTools` in components, composables, and stores.
-- **Origin-trial token injection** — WebMCP is in origin trial in Chrome (149→156) and Edge (from 150); without a token on your origin (or the local `chrome://flags/#enable-webmcp-testing` flag) the API simply doesn't exist. The module injects your token as `<meta http-equiv="origin-trial">`.
+- **Origin-trial token injection** — WebMCP is in origin trial in Chrome (149→156) and Edge (from 150); without a token on your origin (or the local `chrome://flags/#enable-webmcp-testing` flag) the API simply doesn't exist. The module injects your tokens as `<meta http-equiv="origin-trial">`, from the build config or from runtime config at deploy time.
 - **SSR-safe by construction** — the composable is inert during server rendering and registers tools after mount on the client. No `import.meta.client` guards needed in your code.
 
 > Same experimental-status caveats as [`vue-webmcp`](../vue-webmcp#readme) (2026-08-27): origin-trial API in Chrome and Edge, WebKit opposed, Mozilla neutral. ChatGPT Desktop's built-in browser calls WebMCP tools ([Site tools](https://learn.chatgpt.com/docs/webmcp)). Everything degrades to a no-op where the API is absent.
@@ -18,12 +18,37 @@ npm install nuxt-webmcp
 // nuxt.config.ts
 export default defineNuxtConfig({
   modules: ['nuxt-webmcp'],
-  webmcp: {
-    // https://developer.chrome.com/docs/ai/webmcp
-    originTrialToken: process.env.NUXT_PUBLIC_WEBMCP_OT_TOKEN,
-  },
 })
 ```
+
+### Origin-trial tokens
+
+Register your origin at [developer.chrome.com/docs/ai/webmcp](https://developer.chrome.com/docs/ai/webmcp) and hand the token to the module in one of two ways.
+
+At deploy time, through runtime config, so one build can serve staging and production with different tokens:
+
+```sh
+NUXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN="token-for-this-origin"   # several: comma-separated
+```
+
+```ts
+// or in nuxt.config.ts, overridable by the env var the usual Nuxt way
+runtimeConfig: {
+  public: {
+    webmcp: { originTrialToken: '' },
+  },
+},
+```
+
+At build time, baked into the bundle:
+
+```ts
+webmcp: {
+  originTrialToken: process.env.WEBMCP_OT_TOKEN, // or an array
+},
+```
+
+Both can be set; every token ends up in the head, build-time ones first. Each tag gets its own head key, because unhead otherwise keeps only the last `<meta http-equiv="origin-trial">` and silently drops the rest.
 
 ## Usage
 
