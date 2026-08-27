@@ -2,9 +2,23 @@
 import { describe, expect, it } from 'vitest'
 import { createSSRApp, defineComponent, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
-import { useRegisteredTools, useWebMCPTool } from '../src'
+import { useRegisteredTools, useWebMCPTool, useWebMCPTools } from '../src'
 
 describe('server-side rendering', () => {
+  it('keeps useWebMCPTools inert: nothing registered, no document access', async () => {
+    const App = defineComponent({
+      setup() {
+        const { isSupported, isRegistered } = useWebMCPTools([
+          { name: 'a', description: 'A', execute: () => 'ok' },
+        ])
+        return () => h('div', `${isSupported.value}:${isRegistered.value}`)
+      },
+    })
+
+    const html = await renderToString(createSSRApp(App))
+    expect(html).toBe('<div>false:false</div>')
+  })
+
   it('keeps useRegisteredTools inert: no tools, isSupported false', async () => {
     const App = defineComponent({
       setup() {
