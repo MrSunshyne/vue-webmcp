@@ -76,7 +76,7 @@ const DESCRIPTION_BUDGET = 500
 const PARAM_DESCRIPTION_BUDGET = 150
 const OUTPUT_BUDGET = 1500
 
-type BudgetMode = NonNullable<WebMCPConfig['budgets']>
+type BudgetMode = Exclude<WebMCPConfig['budgets'], false | undefined>
 
 // Mirrors the spec's name grammar and Chrome's character budgets. In 'warn'
 // mode (the development default) each problem is logged and registration
@@ -152,9 +152,10 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     error: readonly(error),
   }
 
-  // App-level hooks and budget mode, read once at setup from the nearest
-  // provider (none outside an injection context).
-  const config = injectWebMCPConfig()
+  // App-level hooks and budget mode, snapshotted once at setup from the
+  // nearest provider (none outside an injection context).
+  const provided = injectWebMCPConfig()
+  const config: WebMCPConfig | null = provided ? { ...provided } : null
   const budgets: BudgetMode | false = config?.budgets ?? (isDev ? 'warn' : false)
 
   // Server render: stay inert. The same call in the client app registers the
@@ -212,10 +213,11 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       ? callOptions
       : { signal: new AbortController().signal }
     const name = toValue(options.name)
-    const started = now()
     // Arguments reach the hooks only when the app opted in.
     const argsPayload = config?.includeArgs ? { args } : {}
     emit(config?.onToolCall, { name, ...argsPayload })
+    // Timed from here, so a slow hook does not count against the tool.
+    const started = now()
     try {
       const result = await options.execute(args as Args, executeOptions)
       const shaped = options.formatOutput ? options.formatOutput(result, args as Args) : result

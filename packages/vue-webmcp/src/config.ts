@@ -4,7 +4,7 @@ import type { WebMCPToolResponse } from './types'
 
 export interface WebMCPToolCallEvent {
   name: string
-  /** Present only with `includeArgs: true`. */
+  /** Present only with `includeArgs: true`. The same object `execute` receives; do not mutate it. */
   args?: unknown
 }
 
@@ -16,25 +16,33 @@ export interface WebMCPToolResultEvent {
   ms: number
   /** What the agent receives, after normalization. */
   response: WebMCPToolResponse
-  /** What `execute` threw or returned as an `Error`, when `ok` is false for that reason. */
+  /**
+   * What `execute` threw or returned as an `Error`, when `ok` is false for
+   * that reason; in `'error'` budget mode also the oversized-result failure.
+   */
   error?: unknown
   /** Present only with `includeArgs: true`. */
   args?: unknown
 }
 
 /**
- * App-level settings for every `useWebMCPTool` call below the provider.
- * Provide it once at the root (`app.provide(WEBMCP_CONFIG, ...)` or
- * `provideWebMCPConfig()` in a root component's setup).
+ * App-level settings for every `useWebMCPTool` call below the provider,
+ * read once when each tool is set up. Provide it once at the root:
+ * `app.provide(WEBMCP_CONFIG, ...)` reaches everything, including tools
+ * registered from Pinia stores or under `app.runWithContext`;
+ * `provideWebMCPConfig()` in a root component's setup reaches that
+ * component's subtree only.
  */
 export interface WebMCPConfig {
   /**
    * What happens when a name, description, parameter or result is over
    * Chrome's character budgets. `'warn'` logs (the default in development).
-   * `'error'` throws from setup for an over-budget initial definition,
-   * records a later over-budget change in `error` without registering, and
-   * turns an oversized result into an `isError` response. `false` skips the
-   * checks (the default in production).
+   * `'error'` fails setup for an over-budget initial definition (a thrown
+   * error in a dev or test build; the server never validates), records a
+   * later over-budget change in `error` without registering, and turns an
+   * oversized result into an `isError` response. `false` skips the checks
+   * (the default in production). An explicit `'warn'` is honoured in
+   * production too, so leave it unset outside test runs.
    */
   budgets?: 'warn' | 'error' | false
   /**
@@ -50,7 +58,10 @@ export interface WebMCPConfig {
 
 export const WEBMCP_CONFIG: InjectionKey<WebMCPConfig> = Symbol('vue-webmcp config')
 
-/** Call in a setup function (or under `app.runWithContext`) to configure the subtree. */
+/**
+ * Call in a component's `setup()` to configure its subtree. For the whole
+ * app, including Pinia stores, use `app.provide(WEBMCP_CONFIG, config)`.
+ */
 export function provideWebMCPConfig(config: WebMCPConfig): void {
   provide(WEBMCP_CONFIG, config)
 }

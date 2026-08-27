@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, defineComponent, h, nextTick, ref } from 'vue'
-import { provideWebMCPConfig, useWebMCPTool } from '../src'
+import { WEBMCP_CONFIG, provideWebMCPConfig, useWebMCPTool } from '../src'
 import type { WebMCPToolResponse } from '../src'
 import { cleanupModelContext, installFakeModelContext, mountComposable } from './harness'
 
@@ -196,14 +196,17 @@ describe('budgets', () => {
     expect(tools.size).toBe(0)
   })
 
-  // Last: the throw leaves the mounting app half-initialized, on purpose.
   it("'error' throws from setup for an over-budget initial definition", () => {
-    installFakeModelContext()
+    const { tools } = installFakeModelContext()
+    // runWithContext gives the composable an injection context without
+    // mounting, so the throw leaves no half-initialized component behind.
+    const app = createApp({ render: () => h('div') })
+    app.provide(WEBMCP_CONFIG, { budgets: 'error' })
     expect(() =>
-      mountComposable(
-        () => useWebMCPTool({ name: 'x'.repeat(31), description: 'ok', execute: () => 'ok' }),
-        { config: { budgets: 'error' } },
+      app.runWithContext(() =>
+        useWebMCPTool({ name: 'x'.repeat(31), description: 'ok', execute: () => 'ok' }),
       ),
     ).toThrow(/31 characters/)
+    expect(tools.size).toBe(0)
   })
 })
