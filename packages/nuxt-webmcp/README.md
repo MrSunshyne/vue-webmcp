@@ -90,6 +90,22 @@ routeRules: {
 },
 ```
 
+### Hooks and budgets
+
+App-level [configuration](../vue-webmcp#configuration-hooks-and-budgets) (call hooks, the budget mode) is a Vue provide, so a plugin is the place for it:
+
+```ts
+// plugins/webmcp.ts
+import { WEBMCP_CONFIG } from 'vue-webmcp'
+
+export default defineNuxtPlugin(nuxtApp => {
+  nuxtApp.vueApp.provide(WEBMCP_CONFIG, {
+    onToolResult: ({ name, ok, ms }) => useTrackEvent('tool_result', { name, ok, ms }),
+    budgets: process.env.NODE_ENV === 'test' ? 'error' : 'warn',
+  })
+})
+```
+
 ## Not the same thing as nuxt-mcp
 
 They sound alike and are complementary, not competing:
