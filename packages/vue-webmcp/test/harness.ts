@@ -27,8 +27,15 @@ function host(target: 'document' | 'navigator'): { modelContext?: ModelContext }
 
 export function installFakeModelContext(target: 'document' | 'navigator' = 'document') {
   const stub = installModelContextStub(hostFor(target))
-  // Spies over the stub's own implementations, so tests can assert calls
-  // and swap behaviour with mockImplementation / mockResolvedValue.
+  // The stub's own implementations, for a mock that wants to fall back to
+  // them (a spy's getMockImplementation() is undefined until one is set).
+  const originals = {
+    registerTool: stub.registerTool,
+    getTools: stub.getTools,
+    executeTool: stub.executeTool,
+  }
+  // Spies over them, so tests can assert calls and swap behaviour with
+  // mockImplementation / mockResolvedValue.
   const registerTool = vi.spyOn(stub, 'registerTool')
   const getTools = vi.spyOn(stub, 'getTools')
   const executeTool = vi.spyOn(stub, 'executeTool')
@@ -37,7 +44,7 @@ export function installFakeModelContext(target: 'document' | 'navigator' = 'docu
     getTools: typeof getTools
     executeTool: typeof executeTool
   }
-  return { context, tools: stub.tools, registerTool }
+  return { context, tools: stub.tools, registerTool, originals }
 }
 
 /** A provider-only context, like a polyfill that lacks the consumer side. */
