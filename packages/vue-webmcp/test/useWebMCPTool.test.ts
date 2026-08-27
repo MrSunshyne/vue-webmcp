@@ -223,6 +223,22 @@ describe('re-registration identity', () => {
     expect(tools.get('add-todo')?.title).toBe('Add an item')
   })
 
+  it('drops the title again when it becomes undefined or null', async () => {
+    const { registerTool } = installFakeModelContext()
+    const title = ref<string | undefined | null>('Add a todo')
+    mountComposable(() => useWebMCPTool({ ...baseOptions, title, execute: () => 'ok' }))
+
+    title.value = undefined
+    await nextTick()
+    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(registerTool.mock.calls[1]![0]).not.toHaveProperty('title')
+
+    // null from a JS caller reads as unset too, without a re-registration.
+    title.value = null
+    await nextTick()
+    expect(registerTool).toHaveBeenCalledTimes(2)
+  })
+
   it('does not churn on a content-equal schema object', async () => {
     const { registerTool } = installFakeModelContext()
     const inputSchema = ref({ type: 'object', properties: { text: { type: 'string' } } })
