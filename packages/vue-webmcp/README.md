@@ -247,12 +247,38 @@ Same lifecycle as `useWebMCPTool`: inert on the server, starts after mount in a 
 
 Three transitional details are handled for you. Arguments go over as the JSON string Chrome shipped with, and switch to the object form the spec adopted once the browser rejects the string with a `TypeError`; a string handed to an object parameter fails before the tool runs, so nothing ever runs twice, and `argumentFormat` skips the detection. A stringified `inputSchema` from an older `getTools()` is parsed back into an object. Results come back parsed whether the browser returns JSON text (spec) or a polyfill returns the value itself; a polyfill returning a plain string that happens to be valid JSON is parsed too.
 
+## Configuration: hooks and budgets
+
+App-level settings reach every `useWebMCPTool` call through Vue's provide/inject, read once when each tool is set up. Provide once, at the root:
+
+```ts
+// main.ts
+import { WEBMCP_CONFIG } from 'vue-webmcp'
+
+app.provide(WEBMCP_CONFIG, {
+  onToolCall: ({ name }) => track('tool_called', { name }),
+  onToolResult: ({ name, ok, ms }) => track('tool_result', { name, ok, ms }),
+  budgets: import.meta.env.MODE === 'test' ? 'error' : undefined,
+})
+```
+
+`app.provide` reaches everything, including tools registered from Pinia stores or under `app.runWithContext`. `provideWebMCPConfig(config)` in a component's `setup()` reaches that component's subtree only. Outside an injection context (a bare `effectScope` with no app) there is no config and the defaults apply.
+
+| option | meaning |
+| --- | --- |
+| `onToolCall({ name, args? })` | Runs before `execute`. |
+| `onToolResult({ name, ok, ms, response, error?, args? })` | Runs after normalization, for success and failure alike: `ok` is false when `execute` threw, returned an `Error`, or returned an `isError` result; `error` holds what was thrown; `ms` is timed from after `onToolCall`. Runs after the tool's own `onError`. |
+| `includeArgs` | Put the call arguments in both payloads, as the same object `execute` receives (do not mutate it). Off by default: arguments often carry personal data that should not reach an analytics tool. |
+| `budgets` | What happens when a name, description, parameter or result is over [Chrome's character budgets](#security-notes): `'warn'` logs (the development default); `'error'` fails setup for an over-budget initial definition (a thrown error in a dev or test build; the server never validates), records a later over-budget change in `error` without registering, and turns an oversized result into an `isError` response, so a test run fails on any of them; `false` skips the checks (the production default). An explicit `'warn'` is honoured in production too, so leave it unset outside test runs. |
+
+A hook that throws is reported with a warning and never changes the tool's result.
+
 ## Security notes
 
 Tools are an attack surface as much as an interface. Minimum hygiene:
 
 - Mark tools that don't mutate state with `annotations: { readOnlyHint: true }`; mark tools whose output embeds user- or third-party content with `untrustedContentHint: true` so agents don't follow it as instructions.
-- Stay within Chrome's [character budgets](https://developer.chrome.com/docs/ai/webmcp/secure-tools): 500 characters per tool description, 150 per parameter description, 30 per tool or parameter name, 1.5K per tool output. Dev builds warn when you exceed any of them, and when a name is outside the spec grammar (`[a-zA-Z0-9_.-]{1,128}`).
+- Stay within Chrome's [character budgets](https://developer.chrome.com/docs/ai/webmcp/secure-tools): 500 characters per tool description, 150 per parameter description, 30 per tool or parameter name, 1.5K per tool output. Dev builds warn when you exceed any of them, and when a name is outside the spec grammar (`[a-zA-Z0-9_.-]{1,128}`); `budgets: 'error'` in the [configuration](#configuration-hooks-and-budgets) makes them fail instead, which is what you want in a test run.
 - WebMCP requires a secure, origin-isolated context and is gated by the `tools` Permissions Policy (default `self`); denial surfaces as a `NotAllowedError` in `error`.
 - A tool is visible to the registering page, its same-origin frames, and the browser's own agent by default. `exposedTo: ['https://agent.example']` extends that to specific secure origins, for example an iframe-hosted agent, which also needs `allow="tools"` on its frame and `getTools({ fromOrigins })` on its side. An entry that is not a potentially trustworthy origin makes registration fail: `error` holds a `SecurityError` and the tool is not registered.
 - Registration is *site-controlled*: never expose an operation as a tool that you wouldn't expose as an unauthenticated-intent button — the agent acts with the signed-in user's session.
