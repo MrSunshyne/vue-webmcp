@@ -16,6 +16,7 @@ import type {
   WebMCPToolAnnotations,
   WebMCPToolDescriptor,
   WebMCPToolExecuteOptions,
+  WebMCPToolResponse,
 } from './types'
 
 export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = unknown> {
@@ -76,6 +77,7 @@ const TOOL_NAME_PATTERN = /^[\w.-]{1,128}$/
 const NAME_BUDGET = 30
 const DESCRIPTION_BUDGET = 500
 const PARAM_DESCRIPTION_BUDGET = 150
+const OUTPUT_BUDGET = 1500
 
 // No dependency on node types: bundlers statically replace
 // `process.env.NODE_ENV`, and the typeof guard keeps bundler-less browsers safe.
@@ -180,6 +182,23 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let started = false
   let warnedLegacy = false
+  let warnedOutput = false
+
+  // Advisory, dev only, once per tool: Chrome's guidance caps a single tool
+  // output at 1.5K characters of text.
+  function checkOutputBudget(response: WebMCPToolResponse): void {
+    if (warnedOutput) return
+    const size = response.content.reduce(
+      (total, block) => total + (typeof block.text === 'string' ? block.text.length : 0),
+      0,
+    )
+    if (size > OUTPUT_BUDGET) {
+      warnedOutput = true
+      warn(
+        `tool "${toValue(options.name)}" returned ${size} characters of text; Chrome's guidance is <= ${OUTPUT_BUDGET} per call.`,
+      )
+    }
+  }
 
   // Only what the browser receives at registration re-registers the tool,
   // compared by content so inline object literals and reactive sources don't
@@ -208,7 +227,9 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       // A returned Error gets the same treatment as a thrown one:
       // `onError`, then an `isError` result.
       if (shaped instanceof Error) throw shaped
-      return toToolResponse(shaped)
+      const response = toToolResponse(shaped)
+      if (isDev) checkOutputBudget(response)
+      return response
     } catch (err) {
       options.onError?.(err)
       return toErrorResponse(err)

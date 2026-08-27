@@ -633,6 +633,20 @@ describe('dev-mode descriptor warnings', () => {
     expect(messages.some(m => m.includes('spec grammar'))).toBe(false)
   })
 
+  it('warns once when a tool returns more than 1.5K characters of text', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tools } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute: () => 'z'.repeat(1501) }))
+
+    await invoke(tools, 'add-todo')
+    await invoke(tools, 'add-todo')
+
+    const messages = warnSpy.mock.calls
+      .map(call => String(call[0]))
+      .filter(m => m.includes('1501 characters'))
+    expect(messages).toHaveLength(1)
+  })
+
   it('warns on an over-budget param description', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     installFakeModelContext()
