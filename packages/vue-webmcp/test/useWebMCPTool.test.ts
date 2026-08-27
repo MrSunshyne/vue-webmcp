@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import { useWebMCPTool } from '../src'
-import type { UseWebMCPToolReturn, WebMCPToolResponse } from '../src'
+import type { UseWebMCPToolReturn, WebMCPToolExecuteOptions, WebMCPToolResponse } from '../src'
 import { cleanupModelContext, installFakeModelContext, mountComposable } from './harness'
 
 const baseOptions = {
@@ -17,14 +17,17 @@ const baseOptions = {
   inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
 }
 
+// Mirrors the browser side: Chrome 153+ passes `{ signal }` as the second
+// argument, earlier builds pass nothing.
 async function invoke(
-  tools: Map<string, { execute: (args: unknown) => unknown }>,
+  tools: Map<string, { execute: (args: unknown, options?: WebMCPToolExecuteOptions) => unknown }>,
   name: string,
   args: unknown = {},
+  options?: WebMCPToolExecuteOptions,
 ): Promise<WebMCPToolResponse> {
   const tool = tools.get(name)
   if (!tool) throw new Error(`tool "${name}" is not registered`)
-  return (await tool.execute(args)) as WebMCPToolResponse
+  return (await tool.execute(args, options)) as WebMCPToolResponse
 }
 
 afterEach(() => {
@@ -338,6 +341,22 @@ describe('error normalization', () => {
     expect(onError).toHaveBeenCalledWith({ code: 403 })
   })
 
+  it('uses the message of a thrown Error-like object', async () => {
+    const { tools } = installFakeModelContext()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: () => {
+          throw { message: 'cross-realm failure', code: 500 }
+        },
+      }),
+    )
+    expect(await invoke(tools, 'add-todo')).toEqual({
+      content: [{ type: 'text', text: 'cross-realm failure' }],
+      isError: true,
+    })
+  })
+
   it('treats a returned Error exactly like a thrown one', async () => {
     const { tools } = installFakeModelContext()
     const onError = vi.fn()
@@ -362,6 +381,80 @@ describe('error normalization', () => {
     const response = await invoke(tools, 'add-todo')
     expect(response.isError).toBe(true)
     expect(response.content[0]?.text).toBe('shaping failed')
+  })
+})
+
+describe('execute options and signal', () => {
+  it('forwards args and the browser-provided options to execute', async () => {
+    const { tools } = installFakeModelContext()
+    const execute = vi.fn((args: { text: string }) => `done: ${args.text}`)
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute }))
+
+    const controller = new AbortController()
+    const options = { signal: controller.signal }
+    const response = await invoke(tools, 'add-todo', { text: 'buy milk' }, options)
+
+    expect(execute).toHaveBeenCalledWith({ text: 'buy milk' }, options)
+    expect(response).toEqual({ content: [{ type: 'text', text: 'done: buy milk' }] })
+  })
+
+  it('supplies a signal that never aborts when the browser passes no options', async () => {
+    const { tools } = installFakeModelContext()
+    const execute = vi.fn((_args: unknown, { signal }: WebMCPToolExecuteOptions) =>
+      signal.aborted ? 'aborted' : 'live',
+    )
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute }))
+
+    const response = await invoke(tools, 'add-todo')
+
+    expect(execute.mock.calls[0]![1].signal).toBeInstanceOf(AbortSignal)
+    expect(response.content[0]?.text).toBe('live')
+  })
+
+  it('lets execute observe an abort during execution', async () => {
+    const { tools } = installFakeModelContext()
+    const controller = new AbortController()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: (_args, { signal }) =>
+          new Promise<string>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(new Error('aborted during execution')))
+          }),
+      }),
+    )
+
+    const pending = invoke(tools, 'add-todo', {}, { signal: controller.signal })
+    controller.abort()
+
+    expect(await pending).toEqual({
+      content: [{ type: 'text', text: 'aborted during execution' }],
+      isError: true,
+    })
+  })
+
+  it('reports an AbortError from signal.throwIfAborted() through onError', async () => {
+    const { tools } = installFakeModelContext()
+    const onError = vi.fn()
+    const controller = new AbortController()
+    controller.abort()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: (_args, { signal }) => {
+          signal.throwIfAborted()
+          return 'never reached'
+        },
+        onError,
+      }),
+    )
+
+    const response = await invoke(tools, 'add-todo', {}, { signal: controller.signal })
+
+    expect(response.isError).toBe(true)
+    expect(response.content[0]?.text).toMatch(/abort/i)
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect((onError.mock.calls[0]![0] as { name: string }).name).toBe('AbortError')
   })
 })
 
