@@ -29,6 +29,12 @@ export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = u
   inputSchema?: MaybeRefOrGetter<object | undefined>
   annotations?: MaybeRefOrGetter<WebMCPToolAnnotations | undefined>
   /**
+   * Secure origins (for example an iframe-hosted agent) that may discover and
+   * call the tool, in addition to the registering page, its same-origin
+   * frames, and the browser's own agent.
+   */
+  exposedTo?: MaybeRefOrGetter<readonly string[] | undefined>
+  /**
    * Runs when the agent invokes the tool. Reads reactive state live at call
    * time; swapping the function never re-registers the tool.
    *
@@ -170,6 +176,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       toValue(options.description),
       toValue(options.inputSchema) ?? null,
       toValue(options.annotations) ?? null,
+      toValue(options.exposedTo) ?? null,
       toValue(options.enabled ?? true),
     ]),
   )
@@ -261,10 +268,15 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     }
     if (isDev) validateDescriptor(descriptor)
 
+    const exposedTo = toValue(options.exposedTo)
     const own = new AbortController()
     controller = own
     try {
-      const result = resolved.context.registerTool(descriptor, { signal: own.signal })
+      // Copy so the browser gets a plain array, not a reactive proxy.
+      const result = resolved.context.registerTool(descriptor, {
+        signal: own.signal,
+        ...(exposedTo !== undefined ? { exposedTo: [...exposedTo] } : {}),
+      })
       // The spec makes registerTool promise-returning; surface an async
       // rejection instead of leaving it unhandled.
       if (result && typeof (result as PromiseLike<unknown>).then === 'function') {

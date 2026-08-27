@@ -113,6 +113,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
   description,    // MaybeRefOrGetter<string> — natural-language description for the agent (required)
   inputSchema,    // MaybeRefOrGetter<object> — JSON Schema for the args (optional)
   annotations,    // MaybeRefOrGetter<{ readOnlyHint?, untrustedContentHint? }> (optional)
+  exposedTo,      // MaybeRefOrGetter<string[]> — secure origins that may also call the tool (optional)
   execute,        // (args, { signal }) => result | Promise<result> (required)
   enabled,        // MaybeRefOrGetter<boolean> — register only while true (default true)
   formatOutput,   // (result, args) => any — optional shaper before MCP normalization
@@ -124,11 +125,11 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 | --- | --- | --- |
 | `isSupported` | `Readonly<Ref<boolean>>` | A modelContext API exists here. Flips reactively if an extension injects it late (rechecked every 500 ms for 10 s). |
 | `isRegistered` | `Readonly<Ref<boolean>>` | The tool is currently registered with the browser. |
-| `error` | `Readonly<Ref<Error \| null>>` | Registration failure, e.g. `NotAllowedError` from a [`tools` Permissions Policy](https://github.com/webmachinelearning/webmcp). |
+| `error` | `Readonly<Ref<Error \| null>>` | Registration failure, e.g. `NotAllowedError` from a [`tools` Permissions Policy](https://github.com/webmachinelearning/webmcp) or `SecurityError` from an insecure `exposedTo` origin. |
 
 ### Reactivity rules
 
-- `name`, `title`, `description`, `inputSchema`, `annotations`, and `enabled` accept plain values, refs, or getters. Any change to them re-registers the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
+- `name`, `title`, `description`, `inputSchema`, `annotations`, `exposedTo`, and `enabled` accept plain values, refs, or getters. Any change to them re-registers the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
 - `title` is a label the user agent may use when it refers to the tool in its own UI; agents work from `name` and `description`. Omit it and the user agent is free to display a value of its own. The spec recommends localizing it to the user's language.
 - `execute` is *not* reactive input and never triggers re-registration. It reads reactive state live at call time — `setup()` runs once in Vue, so there is no stale-closure problem and no ref-mirroring dance.
 - On the server (SSR) the composable is inert: no `document` access, `isSupported` stays `false`, registration happens after mount on the client. No hydration mismatch.
@@ -164,6 +165,7 @@ Tools are an attack surface as much as an interface. Minimum hygiene:
 - Mark tools that don't mutate state with `annotations: { readOnlyHint: true }`; mark tools whose output embeds user- or third-party content with `untrustedContentHint: true` so agents don't follow it as instructions.
 - Keep descriptions within Chrome's guidance (≤ 500 characters per tool, ≤ 150 per parameter) — dev builds warn when you exceed them, or when a name is outside the spec grammar (`[a-zA-Z0-9_.-]{1,128}`).
 - WebMCP requires a secure, origin-isolated context and is gated by the `tools` Permissions Policy (default `self`); denial surfaces as a `NotAllowedError` in `error`.
+- A tool is visible to the registering page, its same-origin frames, and the browser's own agent by default. `exposedTo: ['https://agent.example']` extends that to specific secure origins, for example an iframe-hosted agent, which also needs `allow="tools"` on its frame and `getTools({ fromOrigins })` on its side. An entry that is not a potentially trustworthy origin makes registration fail: `error` holds a `SecurityError` and the tool is not registered.
 - Registration is *site-controlled*: never expose an operation as a tool that you wouldn't expose as an unauthenticated-intent button — the agent acts with the signed-in user's session.
 
 ## Trying it locally
