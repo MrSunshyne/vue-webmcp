@@ -4,6 +4,7 @@ export { toErrorResponse, toToolResponse } from './normalize'
 export type {
   ModelContext,
   RegisterToolOptions,
+  RegisteredTool,
   WebMCPContentBlock,
   WebMCPToolAnnotations,
   WebMCPToolDescriptor,

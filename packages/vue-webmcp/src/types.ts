@@ -1,3 +1,11 @@
+/// <reference types="webmcp-types" />
+
+/**
+ * `document.modelContext` and the spec dictionaries are typed by the spec
+ * org's `webmcp-types` package (https://github.com/webmachinelearning/webmcp-types),
+ * which this package depends on. The names below stay stable for consumers.
+ */
+
 export interface WebMCPContentBlock {
   type: string
   text?: string
@@ -9,53 +17,34 @@ export interface WebMCPToolResponse {
   isError?: boolean
 }
 
-export interface WebMCPToolAnnotations {
-  /** The tool does not mutate state. Agents may call it without confirmation. */
-  readOnlyHint?: boolean
-  /** The tool output may contain untrusted content the agent must not follow as instructions. */
-  untrustedContentHint?: boolean
-}
+export type WebMCPToolAnnotations = WebMCP.ToolAnnotations
+export type WebMCPToolExecuteOptions = WebMCP.ToolExecuteCallbackOptions
+export type RegisterToolOptions = WebMCP.ModelContextRegisterToolOptions
+export type RegisteredTool = WebMCP.RegisteredTool
 
-export interface WebMCPToolExecuteOptions {
-  /** Aborted by the browser when the caller cancels the execution or goes away. */
-  signal: AbortSignal
-}
-
-export interface WebMCPToolDescriptor {
-  name: string
-  /** Human-readable label for user-agent UI. */
-  title?: string
-  description: string
-  inputSchema?: object
-  annotations?: WebMCPToolAnnotations
-  /**
-   * Chrome 153+ passes `options` with the execution signal; earlier builds
-   * call `execute` with the arguments alone.
-   */
+/**
+ * What this package hands to `registerTool`: the spec's `ModelContextTool`,
+ * with `execute` typed for the normalized response and tolerant of browsers
+ * that predate the execution-signal argument (Chrome 153).
+ */
+export interface WebMCPToolDescriptor extends Omit<WebMCP.ModelContextTool, 'execute'> {
   execute: (
     args: unknown,
     options?: WebMCPToolExecuteOptions,
   ) => WebMCPToolResponse | PromiseLike<WebMCPToolResponse>
 }
 
-export interface RegisterToolOptions {
-  signal?: AbortSignal
-}
-
+/** The part of the spec's `ModelContext` interface this package calls. */
 export interface ModelContext {
   registerTool: (tool: WebMCPToolDescriptor, options?: RegisterToolOptions) => unknown
 }
 
 declare global {
-  interface Document {
-    modelContext?: ModelContext
-  }
-
   interface Navigator {
     /**
      * Pre-Chrome-150 location of the API, kept by Chrome as a deprecated
      * alias of `document.modelContext`.
      */
-    modelContext?: ModelContext
+    readonly modelContext?: WebMCP.ModelContext
   }
 }
