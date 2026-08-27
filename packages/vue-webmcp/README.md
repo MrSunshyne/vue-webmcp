@@ -158,6 +158,50 @@ Whatever `execute` returns is normalized to an MCP tool result, identically to `
 - a **thrown value** — Error or not (`throw "not signed in"`, `throw { code: 403 }`) → `{ content: [...], isError: true }`, after `onError`. Errors and objects with a string `message` (an error thrown in another realm, a structured-cloned error) supply that message; strings pass through; anything else is JSON-serialized. A failure must never read as success to the agent.
 - a **returned `Error`** → treated exactly like a throw
 
+## Consuming tools: `useRegisteredTools()`
+
+The other side of the API. `getTools()` returns the tools this document may call, `executeTool()` runs one in its owner's document, and the `toolchange` event fires when the set changes. `useRegisteredTools()` folds those into a reactive list, for an in-page agent, a dev panel, or an iframe-hosted agent reading a partner page's tools:
+
+```vue
+<script setup lang="ts">
+import { useRegisteredTools } from 'vue-webmcp'
+
+const { isSupported, tools, execute } = useRegisteredTools()
+
+async function search(query: string) {
+  const tool = tools.value.find(t => t.name === 'search-posts')
+  if (!tool) return
+  const result = await execute(tool, { query })
+  // result is the tool's return value, e.g. { content: [{ type: 'text', text: '...' }] }
+}
+</script>
+
+<template>
+  <ul v-if="isSupported">
+    <li v-for="tool in tools" :key="tool.name">{{ tool.name }}: {{ tool.description }}</li>
+  </ul>
+</template>
+```
+
+```ts
+const { isSupported, tools, error, refresh, execute } = useRegisteredTools({
+  fromOrigins,    // MaybeRefOrGetter<string[]> — secure origins whose tools to include (optional)
+  argumentFormat, // 'object' (spec, default) | 'json' for Chrome builds that predate the object form
+})
+```
+
+| return | type | meaning |
+| --- | --- | --- |
+| `isSupported` | `Readonly<Ref<boolean>>` | `getTools()` and `executeTool()` exist here. A registration-only polyfill leaves this `false`. |
+| `tools` | `Readonly<ShallowRef<readonly RegisteredTool[]>>` | The spec's `RegisteredTool` dictionaries (`name`, `title`, `description`, `inputSchema`, `annotations`, `origin`, `window`), in the browser's order, refreshed on `toolchange`. |
+| `error` | `Readonly<Ref<Error \| null>>` | Failure of the last `getTools()` call. |
+| `refresh` | `() => Promise<void>` | Query again by hand. |
+| `execute` | `(tool, args?, { signal }?) => Promise<unknown>` | Run a tool. Resolves with its result parsed from the JSON the browser returns; pass a `signal` to cancel. |
+
+Same lifecycle as `useWebMCPTool`: inert on the server, starts after mount in a component or immediately in a store or `effectScope`, waits up to 10 s for a late-injected API, and stops listening on scope disposal. Cross-origin tools need the other page to list your origin in `exposedTo` and you to list theirs in `fromOrigins`; the browser checks both before running anything.
+
+Two transitional details are handled for you: a stringified `inputSchema` from an older `getTools()` is parsed back into an object, and results come back parsed whether the browser returns JSON text (spec) or a polyfill returns the value itself.
+
 ## Security notes
 
 Tools are an attack surface as much as an interface. Minimum hygiene:
