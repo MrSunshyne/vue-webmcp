@@ -23,6 +23,8 @@ export interface WebMCPToolExecuteOptions {
 
 export interface WebMCPToolDescriptor {
   name: string
+  /** Human-readable label for user-agent UI. */
+  title?: string
   description: string
   inputSchema?: object
   annotations?: WebMCPToolAnnotations
