@@ -8,7 +8,7 @@
     "generate": "nuxt generate"
   },
   "dependencies": {
-    "nuxt": "^4.0.0",
+    "nuxt": "^4.5.2",
     "nuxt-webmcp": "workspace:*"
   }
 }
