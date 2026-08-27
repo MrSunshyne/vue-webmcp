@@ -19,7 +19,10 @@ import type {
 } from './types'
 
 export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = unknown> {
-  /** Tool identifier the agent sees. 1–128 characters of `[a-zA-Z0-9_.-]`. */
+  /**
+   * Tool identifier the agent sees. 1–128 characters of `[a-zA-Z0-9_.-]`;
+   * Chrome's guidance is to keep it under 30.
+   */
   name: MaybeRefOrGetter<string>
   /** Human-readable label for user-agent UI. Agents reason over `name` and `description`. */
   title?: MaybeRefOrGetter<string | null | undefined>
@@ -68,6 +71,9 @@ const LATE_INJECTION_INTERVAL_MS = 500
 const LATE_INJECTION_MAX_ATTEMPTS = 20
 
 const TOOL_NAME_PATTERN = /^[\w.-]{1,128}$/
+// Chrome's guidance for what a model reads well:
+// https://developer.chrome.com/docs/ai/webmcp/secure-tools
+const NAME_BUDGET = 30
 const DESCRIPTION_BUDGET = 500
 const PARAM_DESCRIPTION_BUDGET = 150
 
@@ -115,6 +121,10 @@ function validateDescriptor(descriptor: WebMCPToolDescriptor): void {
     warn(
       `tool name "${descriptor.name}" is outside the spec grammar (1-128 characters of [a-zA-Z0-9_.-]); browsers may reject it.`,
     )
+  } else if (descriptor.name.length > NAME_BUDGET) {
+    warn(
+      `tool name "${descriptor.name}" is ${descriptor.name.length} characters; Chrome's guidance is <= ${NAME_BUDGET}.`,
+    )
   }
   if (descriptor.description.length > DESCRIPTION_BUDGET) {
     warn(
@@ -125,6 +135,11 @@ function validateDescriptor(descriptor: WebMCPToolDescriptor): void {
     ?.properties
   if (!properties) return
   for (const [param, schema] of Object.entries(properties)) {
+    if (param.length > NAME_BUDGET) {
+      warn(
+        `tool "${descriptor.name}" param "${param}" has a ${param.length}-character name; Chrome's guidance is <= ${NAME_BUDGET}.`,
+      )
+    }
     const description = (schema as { description?: unknown } | null)?.description
     if (typeof description === 'string' && description.length > PARAM_DESCRIPTION_BUDGET) {
       warn(

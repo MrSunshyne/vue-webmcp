@@ -615,6 +615,24 @@ describe('dev-mode descriptor warnings', () => {
     expect(messages.some(m => m.includes('501-character description'))).toBe(true)
   })
 
+  it('warns on tool and param names over the 30-character guidance', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    installFakeModelContext()
+    mountComposable(() =>
+      useWebMCPTool({
+        name: 'n'.repeat(31),
+        description: 'ok',
+        inputSchema: { type: 'object', properties: { ['p'.repeat(31)]: { type: 'string' } } },
+        execute: () => 'ok',
+      }),
+    )
+
+    const messages = warnSpy.mock.calls.map(call => String(call[0]))
+    expect(messages.some(m => m.includes('tool name') && m.includes('31 characters'))).toBe(true)
+    expect(messages.some(m => m.includes('31-character name'))).toBe(true)
+    expect(messages.some(m => m.includes('spec grammar'))).toBe(false)
+  })
+
   it('warns on an over-budget param description', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     installFakeModelContext()
