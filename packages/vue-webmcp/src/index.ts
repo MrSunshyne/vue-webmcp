@@ -7,5 +7,6 @@ export type {
   WebMCPContentBlock,
   WebMCPToolAnnotations,
   WebMCPToolDescriptor,
+  WebMCPToolExecuteOptions,
   WebMCPToolResponse,
 } from './types'

@@ -11,7 +11,12 @@ import {
 } from 'vue'
 import type { MaybeRefOrGetter, Ref } from 'vue'
 import { safeStringify, toErrorResponse, toToolResponse } from './normalize'
-import type { ModelContext, WebMCPToolAnnotations, WebMCPToolDescriptor } from './types'
+import type {
+  ModelContext,
+  WebMCPToolAnnotations,
+  WebMCPToolDescriptor,
+  WebMCPToolExecuteOptions,
+} from './types'
 
 export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = unknown> {
   /** Tool identifier the agent sees. 1–128 characters of `[a-zA-Z0-9_.-]`. */
@@ -24,8 +29,11 @@ export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = u
   /**
    * Runs when the agent invokes the tool. Reads reactive state live at call
    * time; swapping the function never re-registers the tool.
+   *
+   * `options.signal` aborts when the agent or the user cancels the call: hand
+   * it to `fetch` and other cancellable work.
    */
-  execute: (args: Args) => Result | Promise<Result>
+  execute: (args: Args, options: WebMCPToolExecuteOptions) => Result | Promise<Result>
   /** Register only while true. May be a ref or getter — the tool follows it reactively. */
   enabled?: MaybeRefOrGetter<boolean>
   /** Optional shaper applied to the result before MCP normalization. */
@@ -163,9 +171,14 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     ]),
   )
 
-  async function runTool(args: unknown) {
+  async function runTool(args: unknown, callOptions?: WebMCPToolExecuteOptions) {
+    // Browsers before Chrome 153 call execute without options. Supply a signal
+    // that never aborts so user code can rely on the spec signature everywhere.
+    const executeOptions = callOptions?.signal
+      ? callOptions
+      : { signal: new AbortController().signal }
     try {
-      const result = await options.execute(args as Args)
+      const result = await options.execute(args as Args, executeOptions)
       const shaped = options.formatOutput ? options.formatOutput(result, args as Args) : result
       // A returned Error gets the same treatment as a thrown one:
       // `onError`, then an `isError` result.
