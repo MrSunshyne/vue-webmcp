@@ -1,6 +1,6 @@
 {
   "name": "nuxt-webmcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Nuxt module for WebMCP: auto-imports the vue-webmcp composable and injects Chrome origin-trial tokens.",
   "type": "module",
   "license": "Apache-2.0",
