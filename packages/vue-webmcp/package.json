@@ -36,6 +36,11 @@
       "default": "./dist/testing/index.mjs"
     }
   },
+  "typesVersions": {
+    "*": {
+      "testing": ["./dist/testing/index.d.mts"]
+    }
+  },
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",

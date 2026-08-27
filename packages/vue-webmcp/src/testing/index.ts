@@ -14,7 +14,7 @@ export interface StubTool {
   description: string
   inputSchema?: object
   annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }
-  execute: (args: unknown, options: { signal: AbortSignal }) => unknown
+  execute: (args: unknown, options?: { signal: AbortSignal }) => unknown
 }
 
 export interface StubRegisteredTool {
@@ -81,6 +81,12 @@ export function installModelContextStub(host: StubHost = globalThis as StubHost)
         new DOMException(`tool "${tool.name}" is already registered`, 'InvalidStateError'),
       )
     }
+    // An already-aborted signal rejects with its reason, as the spec says.
+    if (options.signal?.aborted) {
+      return Promise.reject(
+        options.signal.reason ?? new DOMException('registration aborted', 'AbortError'),
+      )
+    }
     tools.set(tool.name, tool)
     options.signal?.addEventListener('abort', () => {
       if (tools.get(tool.name) === tool) {
@@ -109,6 +115,10 @@ export function installModelContextStub(host: StubHost = globalThis as StubHost)
   context.executeTool = async (tool, args = {}, options = {}) => {
     const registered = tools.get(tool.name)
     if (!registered) throw new DOMException(`no tool "${tool.name}"`, 'NotFoundError')
+    // A call made with an already-aborted signal never runs the tool.
+    if (options.signal?.aborted) {
+      throw options.signal.reason ?? new DOMException('execution aborted', 'AbortError')
+    }
     const input: unknown = typeof args === 'string' ? JSON.parse(args) : args
     const controller = new AbortController()
     options.signal?.addEventListener('abort', () => controller.abort(options.signal?.reason))
@@ -147,5 +157,10 @@ export function uninstallModelContextStub(host: StubHost = globalThis as StubHos
  * `page.evaluateOnNewDocument(MODEL_CONTEXT_INIT_SCRIPT)`, so the stub is in
  * place before any page script runs. The page can then reach it as
  * `document.modelContext` and its `names()` / `call()` helpers.
+ *
+ * The string is the function's source as published. Import it from Node
+ * (a Playwright fixture, a vitest setup file); a bundler that re-transforms
+ * this package with name-keeping helpers (`__name`) would leave those in
+ * the string, which a page without them cannot run.
  */
 export const MODEL_CONTEXT_INIT_SCRIPT = `(${installModelContextStub.toString()})(globalThis);`
