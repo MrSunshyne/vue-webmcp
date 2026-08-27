@@ -56,7 +56,9 @@ export interface WebMCPConfig {
   onToolResult?: (event: WebMCPToolResultEvent) => void
 }
 
-export const WEBMCP_CONFIG: InjectionKey<WebMCPConfig> = Symbol('vue-webmcp config')
+// Symbol.for, so an app that ends up with two copies of this package (its own
+// pin next to the one nuxt-webmcp depends on) still shares the key.
+export const WEBMCP_CONFIG: InjectionKey<WebMCPConfig> = Symbol.for('vue-webmcp:config')
 
 /**
  * Call in a component's `setup()` to configure its subtree. For the whole
