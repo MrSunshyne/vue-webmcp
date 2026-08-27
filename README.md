@@ -28,7 +28,7 @@ Live demo: [mrsunshyne.github.io/vue-webmcp](https://mrsunshyne.github.io/vue-we
 
 More WebMCP demos, including a [Trip Splitter](https://mrsunshyne.github.io/webmcp-demos/demos/trip-splitter/) built with this package: [webmcp-demos](https://github.com/MrSunshyne/webmcp-demos) ([live](https://mrsunshyne.github.io/webmcp-demos/)).
 
-> **Status (2026-08-01):** WebMCP is 🧪 experimental — a W3C Web Machine Learning CG draft, in Chrome origin trial (149→156, ship target 157), locally testable via `chrome://flags/#enable-webmcp-testing`. WebKit [opposes](https://github.com/WebKit/standards-positions/issues/670); Mozilla is [undecided](https://github.com/mozilla/standards-positions/issues/1412). Everything here feature-detects and no-ops where the API is absent.
+> **Status (2026-08-27):** WebMCP is experimental — a W3C Web Machine Learning CG draft, in origin trial in Chrome (149→156, ship target 157) and Edge (150+), locally testable via `chrome://flags/#enable-webmcp-testing`. ChatGPT Desktop's built-in browser already calls WebMCP tools ([Site tools](https://learn.chatgpt.com/docs/webmcp)); Brave Leo has experimental support; see the spec's [implementation status](https://github.com/webmachinelearning/webmcp/blob/main/implementation-status.md). WebKit [opposes](https://github.com/WebKit/standards-positions/issues/670); Mozilla is [neutral](https://github.com/mozilla/standards-positions/issues/1412). Everything here feature-detects and no-ops where the API is absent.
 
 ## Packages
 

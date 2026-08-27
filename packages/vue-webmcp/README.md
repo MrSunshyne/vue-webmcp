@@ -4,7 +4,7 @@ A Vue composable that registers a [WebMCP](https://github.com/webmachinelearning
 
 The Vue counterpart to [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool) (React, GoogleChromeLabs): agents observe identical registration behavior and results from both — the normalization matrix and re-registration rules are kept in behavioral lockstep.
 
-> **Status (2026-08-01):** built against the current WebMCP spec draft, which exposes the imperative API on **`document.modelContext`** (`registerTool` + `AbortSignal` unregistration). WebMCP is 🧪 experimental: Chrome origin trial 149→156, local testing via `chrome://flags/#enable-webmcp-testing`. WebKit has formally [opposed](https://github.com/WebKit/standards-positions/issues/670) the proposal; Mozilla has [no position](https://github.com/mozilla/standards-positions/issues/1412). No mainstream shipping agent consumes WebMCP tools yet. The composable feature-detects and degrades to a no-op everywhere the API is absent — treat it as progressive enhancement.
+> **Status (2026-08-27):** built against the current WebMCP spec draft: the imperative API on **`document.modelContext`** (`registerTool` + `AbortSignal` unregistration), with `execute(args, { signal })` from Chrome 153. WebMCP is experimental: origin trial in Chrome (149→156, ship target 157) and Edge (150+), local testing via `chrome://flags/#enable-webmcp-testing`. ChatGPT Desktop's built-in browser consumes WebMCP tools as [Site tools](https://learn.chatgpt.com/docs/webmcp) and Brave Leo has experimental support; the spec tracks this in its [implementation status](https://github.com/webmachinelearning/webmcp/blob/main/implementation-status.md). WebKit has formally [opposed](https://github.com/WebKit/standards-positions/issues/670) the proposal; Mozilla is [neutral](https://github.com/mozilla/standards-positions/issues/1412). The composable feature-detects and degrades to a no-op everywhere the API is absent — treat it as progressive enhancement.
 
 ## Install
 
@@ -170,7 +170,7 @@ Tools are an attack surface as much as an interface. Minimum hygiene:
 
 ## Trying it locally
 
-1. Chrome 149+ with `chrome://flags/#enable-webmcp-testing` enabled (or an [origin-trial token](https://developer.chrome.com/docs/ai/webmcp) on your origin).
+1. Chrome 149+ with `chrome://flags/#enable-webmcp-testing` enabled (or an [origin-trial token](https://developer.chrome.com/docs/ai/webmcp) on your origin). Chrome 153+ passes `{ signal }` to `execute`.
 2. The [Model Context Tool Inspector](https://github.com/GoogleChromeLabs/webmcp-tools) extension to list and invoke registered tools.
 
 Live examples: the [playground](https://mrsunshyne.github.io/vue-webmcp/) from this repo, and the [Trip Splitter](https://mrsunshyne.github.io/webmcp-demos/demos/trip-splitter/) in [webmcp-demos](https://github.com/MrSunshyne/webmcp-demos), which loads this package from a CDN with no build step.
