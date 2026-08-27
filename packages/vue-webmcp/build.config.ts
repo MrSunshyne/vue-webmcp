@@ -8,7 +8,7 @@ import { defineBuildConfig } from 'unbuild'
 const REFERENCE = '/// <reference types="webmcp-types" />\n'
 
 export default defineBuildConfig({
-  entries: ['src/index'],
+  entries: ['src/index', 'src/testing/index'],
   declaration: true,
   clean: true,
   externals: ['vue'],
