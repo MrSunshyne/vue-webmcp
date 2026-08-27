@@ -76,6 +76,22 @@ describe('registration lifecycle', () => {
     expect(registerTool.mock.calls[1]![0].title).toBe('Add a todo')
   })
 
+  it('passes exposedTo through to registerTool and omits it when unset', () => {
+    const { registerTool } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ ...baseOptions, name: 'local', execute: () => 'ok' }))
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        name: 'shared',
+        exposedTo: ['https://agent.example'],
+        execute: () => 'ok',
+      }),
+    )
+
+    expect(registerTool.mock.calls[0]![1]).not.toHaveProperty('exposedTo')
+    expect(registerTool.mock.calls[1]![1]?.exposedTo).toEqual(['https://agent.example'])
+  })
+
   it('reports isSupported: false when no modelContext exists', () => {
     vi.useFakeTimers()
     const { result, unmount } = mountComposable(() =>
@@ -237,6 +253,21 @@ describe('re-registration identity', () => {
     title.value = null
     await nextTick()
     expect(registerTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('re-registers when exposedTo changes', async () => {
+    const { registerTool } = installFakeModelContext()
+    const exposedTo = ref(['https://agent.example'])
+    mountComposable(() => useWebMCPTool({ ...baseOptions, exposedTo, execute: () => 'ok' }))
+
+    exposedTo.value = ['https://agent.example', 'https://other.example']
+    await nextTick()
+
+    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(registerTool.mock.calls[1]![1]?.exposedTo).toEqual([
+      'https://agent.example',
+      'https://other.example',
+    ])
   })
 
   it('does not churn on a content-equal schema object', async () => {
