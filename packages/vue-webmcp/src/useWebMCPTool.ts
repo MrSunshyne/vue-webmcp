@@ -10,9 +10,9 @@ import {
   watch,
 } from 'vue'
 import type { MaybeRefOrGetter, Ref } from 'vue'
-import { safeStringify, toErrorResponse, toToolResponse } from './normalize'
+import { isDev, pollForModelContext, resolveModelContext, toError, warn } from './context'
+import { toErrorResponse, toToolResponse } from './normalize'
 import type {
-  ModelContext,
   WebMCPToolAnnotations,
   WebMCPToolDescriptor,
   WebMCPToolExecuteOptions,
@@ -66,11 +66,6 @@ export interface UseWebMCPToolReturn {
   error: Readonly<Ref<Error | null>>
 }
 
-// The modelContext API is often injected by an extension content script that
-// runs after the app mounts, so absence now doesn't mean absence forever.
-const LATE_INJECTION_INTERVAL_MS = 500
-const LATE_INJECTION_MAX_ATTEMPTS = 20
-
 const TOOL_NAME_PATTERN = /^[\w.-]{1,128}$/
 // Chrome's guidance for what a model reads well:
 // https://developer.chrome.com/docs/ai/webmcp/secure-tools
@@ -78,43 +73,6 @@ const NAME_BUDGET = 30
 const DESCRIPTION_BUDGET = 500
 const PARAM_DESCRIPTION_BUDGET = 150
 const OUTPUT_BUDGET = 1500
-
-// No dependency on node types: bundlers statically replace
-// `process.env.NODE_ENV`, and the typeof guard keeps bundler-less browsers safe.
-declare const process: undefined | { env?: { NODE_ENV?: string } }
-
-const isDev =
-  typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production'
-
-function warn(message: string): void {
-  console.warn(`[vue-webmcp] ${message}`)
-}
-
-interface ResolvedModelContext {
-  context: ModelContext
-  legacy: boolean
-}
-
-// DOMException inherits from Error in browsers but not in every test
-// environment; keep it intact either way so `error.name` checks (e.g.
-// "NotAllowedError") work as users expect.
-function toError(err: unknown): Error {
-  if (err instanceof Error) return err
-  if (typeof DOMException !== 'undefined' && err instanceof DOMException) {
-    return err as unknown as Error
-  }
-  return new Error(safeStringify(err))
-}
-
-function resolveModelContext(): ResolvedModelContext | null {
-  if (typeof document !== 'undefined' && document.modelContext) {
-    return { context: document.modelContext, legacy: false }
-  }
-  if (typeof navigator !== 'undefined' && navigator.modelContext) {
-    return { context: navigator.modelContext, legacy: true }
-  }
-  return null
-}
 
 // Advisory only (dev builds): mirrors the spec's name grammar and Chrome's
 // character budgets for descriptions. Never blocks registration.
@@ -179,7 +137,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   }
 
   let controller: AbortController | null = null
-  let pollTimer: ReturnType<typeof setInterval> | null = null
+  let stopPoll: (() => void) | null = null
   let started = false
   let warnedLegacy = false
   let warnedOutput = false
@@ -241,23 +199,17 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   }
 
   function stopPolling(): void {
-    if (pollTimer !== null) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
+    stopPoll?.()
+    stopPoll = null
   }
 
+  // A poll that gave up is forgotten too, so a later change to the
+  // registration fields can start a fresh one.
   function startPolling(): void {
-    if (pollTimer !== null) return
-    let attempts = 0
-    pollTimer = setInterval(() => {
-      if (resolveModelContext()) {
-        stopPolling()
-        register()
-      } else if (++attempts >= LATE_INJECTION_MAX_ATTEMPTS) {
-        stopPolling()
-      }
-    }, LATE_INJECTION_INTERVAL_MS)
+    stopPoll ??= pollForModelContext(found => {
+      stopPoll = null
+      if (found) register()
+    })
   }
 
   // Aborting the signal is how WebMCP unregisters a tool.

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useWebMCPTool } from 'vue-webmcp'
 import ClearCompletedTool from './components/ClearCompletedTool.vue'
+import RegisteredTools from './components/RegisteredTools.vue'
 
 interface Todo {
   id: number
@@ -97,6 +98,8 @@ useWebMCPTool({
         The <code>clear-completed</code> tool is only registered while the panel above is mounted.
       </p>
     </section>
+
+    <RegisteredTools />
   </main>
 </template>
 

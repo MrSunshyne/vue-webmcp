@@ -34,9 +34,33 @@ export interface WebMCPToolDescriptor extends Omit<WebMCP.ModelContextTool, 'exe
   ) => WebMCPToolResponse | PromiseLike<WebMCPToolResponse>
 }
 
-/** The part of the spec's `ModelContext` interface this package calls. */
+export type GetToolsOptions = WebMCP.ModelContextGetToolOptions
+
+/** Options for `executeTool()`; the spec's `ModelContextExecuteToolOptions`. */
+export interface ExecuteToolOptions {
+  signal?: AbortSignal
+}
+
+/**
+ * The part of the spec's `ModelContext` interface this package calls. The
+ * consumer-side members are optional because a registerTool-only build or
+ * polyfill may lack them.
+ */
 export interface ModelContext {
   registerTool: (tool: WebMCPToolDescriptor, options?: RegisterToolOptions) => unknown
+  getTools?: (options?: GetToolsOptions) => Promise<RegisteredTool[]>
+  /**
+   * The spec takes the arguments as an object; Chrome builds that predate
+   * spec PR #246 take a JSON string. The result is the tool's return value
+   * serialized to JSON.
+   */
+  executeTool?: (
+    tool: RegisteredTool,
+    args?: object | string,
+    options?: ExecuteToolOptions,
+  ) => Promise<unknown>
+  addEventListener?: (type: 'toolchange', listener: (event: Event) => void) => void
+  removeEventListener?: (type: 'toolchange', listener: (event: Event) => void) => void
 }
 
 declare global {

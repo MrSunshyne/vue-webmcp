@@ -97,6 +97,9 @@ useWebMCPTool({
         The <code>clear-completed</code> tool is only registered while the panel above is mounted.
       </p>
     </section>
+
+    <!-- Renders its empty state on the server and fills in after mount; no ClientOnly needed -->
+    <RegisteredTools />
   </main>
 </template>
 
