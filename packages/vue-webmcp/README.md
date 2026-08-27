@@ -104,6 +104,40 @@ const { isRegistered } = useWebMCPTool({
 
 You can also call `useWebMCPTool` *inside* a Pinia store or a bare `effectScope` for app-wide tools that shouldn't die with a component; teardown then runs on scope disposal instead of unmount.
 
+### Several tools from one component
+
+One component often owns a group of tools. `defineWebMCPTool()` is a typed identity helper, so definitions can live in plain modules; `useWebMCPTools()` registers a list of them with options shared across the group:
+
+```ts
+// tools/notes.ts
+import { defineWebMCPTool } from 'vue-webmcp'
+
+export const searchNotes = defineWebMCPTool({
+  name: 'search_notes',
+  description: 'Search notes by text',
+  inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+  annotations: { readOnlyHint: true },
+  execute: ({ query }: { query: string }) => store.search(query),
+})
+```
+
+```vue
+<script setup lang="ts">
+import { useWebMCPTools } from 'vue-webmcp'
+import { addNote, getNote, searchNotes } from '@/tools/notes'
+
+const group = useWebMCPTools([searchNotes, getNote, addNote], {
+  enabled: () => store.loaded,           // per-tool `enabled` wins over this
+  onError: (error, name) => report(name, error),
+})
+
+group.isRegistered            // every tool in the group is registered
+group.byName.add_note.error   // per-tool state is still there
+</script>
+```
+
+Shared `enabled`, `annotations`, `exposedTo` and `onError` apply to each tool that does not set its own. Each tool still goes through `useWebMCPTool`, so the lifecycle, re-registration and normalization rules below apply unchanged. `byName` is keyed by each tool's name at setup time.
+
 ## API
 
 ```ts
