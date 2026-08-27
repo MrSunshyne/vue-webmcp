@@ -12,7 +12,7 @@ The Vue counterpart to [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/u
 npm install vue-webmcp
 ```
 
-Requires Vue 3.3+ as a peer dependency. Ships as ESM with TypeScript types. No runtime dependencies; the one dependency is [`webmcp-types`](https://github.com/webmachinelearning/webmcp-types), the spec's own type definitions, so `document.modelContext` is typed in your project without a separate install.
+Requires Vue 3.3+ as a peer dependency. Ships as ESM with TypeScript types. Its only dependency is [`webmcp-types`](https://github.com/webmachinelearning/webmcp-types), the spec's type definitions (no runtime code); importing `vue-webmcp` is enough to get `document.modelContext` typed, with no separate install. If you do install `webmcp-types` yourself, keep it on 0.1.x so the two copies agree.
 
 Using Nuxt? See [`nuxt-webmcp`](../nuxt-webmcp) for auto-imports and origin-trial token injection.
 
