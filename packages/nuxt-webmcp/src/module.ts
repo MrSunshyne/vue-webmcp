@@ -22,7 +22,10 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
   },
   defaults: {},
   setup(options, nuxt) {
-    addImports({ name: 'useWebMCPTool', from: 'vue-webmcp' })
+    addImports([
+      { name: 'useWebMCPTool', from: 'vue-webmcp' },
+      { name: 'useRegisteredTools', from: 'vue-webmcp' },
+    ])
 
     const tokens =
       typeof options.originTrialToken === 'string'
