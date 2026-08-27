@@ -10,6 +10,12 @@ import { vi } from 'vitest'
 import { createApp, defineComponent, h } from 'vue'
 import type { ModelContext, RegisterToolOptions, WebMCPToolDescriptor } from '../src/types'
 
+// The real property is readonly and typed as the full spec interface; the
+// fake only implements registerTool and needs to be installed and removed.
+function host(target: 'document' | 'navigator'): { modelContext?: WebMCP.ModelContext } {
+  return target === 'document' ? document : navigator
+}
+
 export function installFakeModelContext(target: 'document' | 'navigator' = 'document') {
   const tools = new Map<string, WebMCPToolDescriptor>()
   const registerTool = vi.fn((tool: WebMCPToolDescriptor, options: RegisterToolOptions = {}) => {
@@ -21,14 +27,13 @@ export function installFakeModelContext(target: 'document' | 'navigator' = 'docu
     }
   })
   const context: ModelContext = { registerTool }
-  if (target === 'document') document.modelContext = context
-  else navigator.modelContext = context
+  host(target).modelContext = context as unknown as WebMCP.ModelContext
   return { tools, registerTool }
 }
 
 export function cleanupModelContext(): void {
-  delete document.modelContext
-  delete navigator.modelContext
+  delete host('document').modelContext
+  delete host('navigator').modelContext
 }
 
 export function mountComposable<T>(setup: () => T) {
