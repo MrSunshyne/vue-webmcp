@@ -12,7 +12,8 @@ import type { ModelContext, RegisterToolOptions, WebMCPToolDescriptor } from '..
 
 // The real property is readonly and typed as the full spec interface; the
 // fake only implements registerTool and needs to be installed and removed.
-function host(target: 'document' | 'navigator'): { modelContext?: WebMCP.ModelContext } {
+// Viewed through the package's own narrow ModelContext, both are assignable.
+function host(target: 'document' | 'navigator'): { modelContext?: ModelContext } {
   return target === 'document' ? document : navigator
 }
 
@@ -26,8 +27,7 @@ export function installFakeModelContext(target: 'document' | 'navigator' = 'docu
       })
     }
   })
-  const context: ModelContext = { registerTool }
-  host(target).modelContext = context as unknown as WebMCP.ModelContext
+  host(target).modelContext = { registerTool }
   return { tools, registerTool }
 }
 
