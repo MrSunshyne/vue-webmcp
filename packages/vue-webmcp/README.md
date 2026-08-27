@@ -72,6 +72,27 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 
 The tool registers when the component mounts and unregisters automatically when it unmounts — the set of tools an agent sees stays in lockstep with what is actually on screen.
 
+### Tools that follow the UI
+
+That lifecycle rule is the feature. A tool defined in a component exists only while that component is on screen, so an agent can tell where the person is from which tools are offered, and a tool never runs against a view that is not there:
+
+```vue
+<!-- NoteEditor.vue: save_note is offered only while an editor is open -->
+<script setup lang="ts">
+import { useWebMCPTool } from 'vue-webmcp'
+
+const props = defineProps<{ noteId: string }>()
+
+useWebMCPTool({
+  name: 'save_note',
+  description: 'Save the note currently being edited',
+  execute: () => save(props.noteId),
+})
+</script>
+```
+
+Open two editors and the browser sees two registrations of `save_note`, so give such a tool a name that includes the instance (`` `save_note_${props.noteId}` ``) or keep one editor open at a time. For finer control than mount and unmount, `enabled` takes a ref or getter: `enabled: () => route.name === 'notes'` registers the tool only on that page.
+
 ### With Pinia and vue-router
 
 `execute` is an ordinary closure — no store is required, and the composable has no store integration to configure. But because `execute` reads reactive state live at call time, it composes naturally with one, and reactive options like `enabled` can follow the router:
@@ -177,6 +198,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 - `name`, `title`, `description`, `inputSchema`, `annotations`, `exposedTo`, and `enabled` accept plain values, refs, or getters. Any change to them re-registers the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
 - `title` is a label the user agent may use when it refers to the tool in its own UI; agents work from `name` and `description`. Omit it and the user agent is free to display a value of its own. The spec recommends localizing it to the user's language.
 - `execute` is *not* reactive input and never triggers re-registration. It reads reactive state live at call time — `setup()` runs once in Vue, so there is no stale-closure problem and no ref-mirroring dance.
+- The `Args` type parameter is unconstrained on purpose. If you wrap the composable and constrain it with `Args extends Record<string, unknown>`, an `interface` will not satisfy that constraint (interfaces have no implicit index signature) while a `type` alias with the same members will; declare argument shapes with `type`, or leave the constraint off.
 - On the server (SSR) the composable is inert: no `document` access, `isSupported` stays `false`, registration happens after mount on the client. No hydration mismatch.
 
 ### Cancellation
