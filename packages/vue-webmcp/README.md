@@ -133,7 +133,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 
 ### Cancellation
 
-`execute` receives `(args, { signal })`. The browser aborts `signal` when the agent or the user cancels the call (Chrome 153+), so pass it to `fetch` and check it in long-running work:
+`execute` receives `(args, { signal })`. The browser aborts `signal` when the caller cancels the execution or goes away (Chrome 153+), so pass it to `fetch` and check it in long-running work:
 
 ```ts
 async execute({ query }, { signal }) {
@@ -142,7 +142,7 @@ async execute({ query }, { signal }) {
 }
 ```
 
-An abort surfaces like any other failure: `onError` runs, then the agent receives an `isError` result. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so the signature holds everywhere.
+Inside the composable an abort is a failure like any other: `onError` runs and `execute` resolves to an `isError` result. The caller that cancelled has already received the abort reason and does not see that result. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined.
 
 ### Result normalization
 
@@ -152,7 +152,7 @@ Whatever `execute` returns is normalized to an MCP tool result, identically to `
 - **`undefined`/`null`** → `{ content: [] }` (success, no payload)
 - a value already shaped as `{ content: [...] }` → passed through untouched
 - anything else (object/array/number) → JSON-serialized into a text block
-- a **thrown value** — Error or not (`throw "not signed in"`, `throw { code: 403 }`) → `{ content: [...], isError: true }`, after `onError`. Errors and objects with a string `message` (a `DOMException`, an error from another realm) contribute that message; strings pass through; anything else is JSON-serialized. A failure must never read as success to the agent.
+- a **thrown value** — Error or not (`throw "not signed in"`, `throw { code: 403 }`) → `{ content: [...], isError: true }`, after `onError`. Errors and objects with a string `message` (an error thrown in another realm, a structured-cloned error) supply that message; strings pass through; anything else is JSON-serialized. A failure must never read as success to the agent.
 - a **returned `Error`** → treated exactly like a throw
 
 ## Security notes

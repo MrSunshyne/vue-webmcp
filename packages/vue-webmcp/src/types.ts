@@ -17,7 +17,7 @@ export interface WebMCPToolAnnotations {
 }
 
 export interface WebMCPToolExecuteOptions {
-  /** Aborted by the browser when the agent or the user cancels the call. */
+  /** Aborted by the browser when the caller cancels the execution or goes away. */
   signal: AbortSignal
 }
 

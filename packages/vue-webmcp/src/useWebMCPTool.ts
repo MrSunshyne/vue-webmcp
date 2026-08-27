@@ -30,8 +30,8 @@ export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = u
    * Runs when the agent invokes the tool. Reads reactive state live at call
    * time; swapping the function never re-registers the tool.
    *
-   * `options.signal` aborts when the agent or the user cancels the call: hand
-   * it to `fetch` and other cancellable work.
+   * `options.signal` aborts when the caller cancels the execution or goes
+   * away: hand it to `fetch` and other cancellable work.
    */
   execute: (args: Args, options: WebMCPToolExecuteOptions) => Result | Promise<Result>
   /** Register only while true. May be a ref or getter — the tool follows it reactively. */
