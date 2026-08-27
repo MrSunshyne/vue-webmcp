@@ -104,20 +104,22 @@ webmcp: {
 NUXT_PUBLIC_WEBMCP_BUDGETS=error
 ```
 
-In `'error'` mode an over-budget tool fails its component's setup in the browser (a thrown error in a dev or test build; the server never validates), and an oversized result becomes an `isError` response.
+In `'error'` mode an over-budget tool fails its component's setup in the browser (a thrown error in a dev or test build; a production build reports it through Vue's error handling; the server never validates), and an oversized result becomes an `isError` response.
 
 ### Hooks
 
-The call hooks from the same [configuration](../vue-webmcp#configuration-hooks-and-budgets) are functions, so they go in a plugin of your own. Providing `WEBMCP_CONFIG` there replaces what the module provided, so include `budgets` as well if you use both:
+The call hooks from the same [configuration](../vue-webmcp#configuration-hooks-and-budgets) are functions, so they go in a plugin of your own. Providing `WEBMCP_CONFIG` yourself takes precedence: the module's plugin runs after the app's and leaves the key alone once it is provided. Read the budget mode from runtime config there, so the option and the env var keep working:
 
 ```ts
 // plugins/webmcp.ts
 import { WEBMCP_CONFIG } from 'vue-webmcp'
+import type { WebMCPConfig } from 'vue-webmcp'
 
 export default defineNuxtPlugin(nuxtApp => {
+  const budgets = (useRuntimeConfig().public.webmcp.budgets || undefined) as WebMCPConfig['budgets']
   nuxtApp.vueApp.provide(WEBMCP_CONFIG, {
     onToolResult: ({ name, ok, ms }) => useTrackEvent('tool_result', { name, ok, ms }),
-    budgets: import.meta.test ? 'error' : undefined,
+    budgets,
   })
 })
 ```
