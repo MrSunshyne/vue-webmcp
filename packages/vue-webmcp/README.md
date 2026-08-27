@@ -272,6 +272,41 @@ app.provide(WEBMCP_CONFIG, {
 | `budgets` | What happens when a name, description, parameter or result is over [Chrome's character budgets](#security-notes): `'warn'` logs (the development default); `'error'` fails setup for an over-budget initial definition (a thrown error in a dev or test build; the server never validates), records a later over-budget change in `error` without registering, and turns an oversized result into an `isError` response, so a test run fails on any of them; `false` skips the checks (the production default). An explicit `'warn'` is honoured in production too, so leave it unset outside test runs. |
 
 A hook that throws is reported with a warning and never changes the tool's result.
+## Testing tools
+
+`vue-webmcp/testing` ships the test double this package tests itself with: a stub `document.modelContext` that records registrations, honours the `AbortSignal` that unregisters, implements `getTools()` / `executeTool()` / `toolchange`, and adds `names()` and `call()` for assertions. It stays in step with the spec, so projects do not have to maintain their own copy (the `{ signal }` argument Chrome 153 added, for instance).
+
+In vitest with jsdom or happy-dom:
+
+```ts
+import { installModelContextStub, uninstallModelContextStub } from 'vue-webmcp/testing'
+
+const stub = installModelContextStub()
+afterEach(() => uninstallModelContextStub())
+
+mount(NoteEditor)
+expect(stub.names()).toEqual(['save_note'])
+expect(await stub.call('save_note', { title: 'Groceries' })).toEqual({
+  content: [{ type: 'text', text: 'Saved "Groceries".' }],
+})
+```
+
+`call` returns what the tool's `execute` produced, which through `useWebMCPTool` is the normalized `{ content, isError }` an agent would see.
+
+In Playwright, the same stub as a string, installed before any page script runs:
+
+```ts
+import { MODEL_CONTEXT_INIT_SCRIPT } from 'vue-webmcp/testing'
+
+await context.addInitScript(MODEL_CONTEXT_INIT_SCRIPT)
+await page.goto('/notes')
+expect(await page.evaluate(() => document.modelContext.names())).toEqual(['save_note'])
+expect(await page.evaluate(() => document.modelContext.call('save_note', { title: 'x' }))).toMatchObject({
+  isError: undefined,
+})
+```
+
+Puppeteer: `page.evaluateOnNewDocument(MODEL_CONTEXT_INIT_SCRIPT)`.
 
 ## Security notes
 
