@@ -1,5 +1,7 @@
 export { useWebMCPTool } from './useWebMCPTool'
 export type { UseWebMCPToolOptions, UseWebMCPToolReturn } from './useWebMCPTool'
+export { defineWebMCPTool, useWebMCPTools } from './useWebMCPTools'
+export type { UseWebMCPToolsReturn, UseWebMCPToolsSharedOptions } from './useWebMCPTools'
 export { useRegisteredTools } from './useRegisteredTools'
 export type {
   ExecuteRegisteredToolOptions,

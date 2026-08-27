@@ -104,6 +104,51 @@ const { isRegistered } = useWebMCPTool({
 
 You can also call `useWebMCPTool` *inside* a Pinia store or a bare `effectScope` for app-wide tools that shouldn't die with a component; teardown then runs on scope disposal instead of unmount.
 
+### Several tools from one component
+
+One component often owns a group of tools. `defineWebMCPTool()` is a typed identity helper, so definitions can live in plain modules; `useWebMCPTools()` registers a list of them with options shared across the group:
+
+```ts
+// tools/notes.ts
+import { defineWebMCPTool } from 'vue-webmcp'
+import { useNotesStore } from '@/stores/notes'
+
+export const searchNotes = defineWebMCPTool({
+  name: 'search_notes',
+  description: 'Search notes by text',
+  inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+  annotations: { readOnlyHint: true },
+  execute: ({ query }: { query: string }) => useNotesStore().search(query),
+})
+```
+
+```vue
+<script setup lang="ts">
+import { useWebMCPTools } from 'vue-webmcp'
+import { useNotesStore } from '@/stores/notes'
+import { addNote, getNote, searchNotes } from '@/tools/notes'
+
+const store = useNotesStore()
+
+const group = useWebMCPTools([searchNotes, getNote, addNote], {
+  enabled: () => store.loaded,           // per-tool `enabled` wins over this
+  onError: (error, name) => console.error(name, error),
+})
+
+group.isRegistered            // every enabled tool in the group is registered
+group.byName.add_note.error   // per-tool state is still there
+</script>
+```
+
+```ts
+const { isSupported, isRegistered, error, byName } = useWebMCPTools(definitions, {
+  enabled, annotations, exposedTo, // shared defaults; a tool's own value wins
+  onError,                         // (error, name) => void
+})
+```
+
+Shared `enabled`, `annotations`, `exposedTo` and `onError` apply to each tool that does not set its own (a shared `annotations` replaces, it does not merge). Each tool still goes through `useWebMCPTool`, so the lifecycle, re-registration and normalization rules below apply unchanged, and one tool failing to register leaves the others registered; `error` holds the first failure. `isRegistered` counts only the tools that are enabled, so a group with its read tools on and its write tools off still reports registered. `byName` is keyed by each tool's name at setup time. An inline definition in the list gets `args: any` in `execute`; annotate the parameter, or write the tool with `defineWebMCPTool` to keep it typed.
+
 ## API
 
 ```ts

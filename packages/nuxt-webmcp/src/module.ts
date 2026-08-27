@@ -31,6 +31,8 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
 
     addImports([
       { name: 'useWebMCPTool', from: 'vue-webmcp' },
+      { name: 'useWebMCPTools', from: 'vue-webmcp' },
+      { name: 'defineWebMCPTool', from: 'vue-webmcp' },
       { name: 'useRegisteredTools', from: 'vue-webmcp' },
     ])
 
