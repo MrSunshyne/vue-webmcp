@@ -49,11 +49,11 @@
     "vue": ">=3.3.0"
   },
   "devDependencies": {
-    "jsdom": "^26.1.0",
-    "typescript": "^5.6.0",
-    "unbuild": "^3.0.0",
-    "vitest": "^3.2.4",
-    "vue": "^3.5.0"
+    "jsdom": "^30.0.1",
+    "typescript": "^5.9.3",
+    "unbuild": "^3.6.1",
+    "vitest": "^4.1.11",
+    "vue": "^3.5.42"
   },
   "dependencies": {
     "webmcp-types": "^0.1.5"
