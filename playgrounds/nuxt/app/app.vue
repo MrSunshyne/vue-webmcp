@@ -97,6 +97,11 @@ useWebMCPTool({
         The <code>clear-completed</code> tool is only registered while the panel above is mounted.
       </p>
     </section>
+
+    <!-- Discovery also happens after hydration -->
+    <ClientOnly>
+      <RegisteredTools />
+    </ClientOnly>
   </main>
 </template>
 
