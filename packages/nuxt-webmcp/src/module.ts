@@ -15,6 +15,14 @@ export interface ModuleOptions {
    * together and every token ends up in the head.
    */
   originTrialToken?: string | string[]
+  /**
+   * What the character-budget checks do: `'warn'` logs (the development
+   * default), `'error'` fails setup for an over-budget definition and turns
+   * an oversized result into an `isError` response, `false` skips them (the
+   * production default). Overridable at runtime through
+   * `NUXT_PUBLIC_WEBMCP_BUDGETS`. Leave it unset outside test runs.
+   */
+  budgets?: 'warn' | 'error' | false
 }
 
 const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
@@ -55,14 +63,16 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
       }
     }
 
-    // Runtime tokens: a default so NUXT_PUBLIC_WEBMCP_ORIGIN_TRIAL_TOKEN maps
-    // onto it, and a plugin that puts them in the head per request.
+    // Runtime config: defaults so the NUXT_PUBLIC_WEBMCP_* env vars map onto
+    // them, with the user's own runtimeConfig winning over the module option.
     const publicConfig = nuxt.options.runtimeConfig.public as Record<string, unknown>
     publicConfig.webmcp = {
       originTrialToken: '',
+      budgets: options.budgets ?? '',
       ...(publicConfig.webmcp as Record<string, unknown> | undefined),
     }
     addPlugin(resolver.resolve('./runtime/plugin'))
+    addPlugin(resolver.resolve('./runtime/config'))
   },
 })
 
