@@ -1,6 +1,6 @@
 {
   "name": "vue-webmcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Vue composable for registering WebMCP tools (document.modelContext) with lifecycle-managed registration and MCP result normalization.",
   "type": "module",
   "license": "Apache-2.0",
