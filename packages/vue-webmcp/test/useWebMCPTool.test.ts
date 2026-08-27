@@ -65,6 +65,17 @@ describe('registration lifecycle', () => {
     expect(registerTool.mock.calls[0]![0].annotations).toEqual(annotations)
   })
 
+  it('passes title through to registerTool and omits it when unset', () => {
+    const { registerTool } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ ...baseOptions, name: 'plain', execute: () => 'ok' }))
+    mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, name: 'titled', title: 'Add a todo', execute: () => 'ok' }),
+    )
+
+    expect(registerTool.mock.calls[0]![0]).not.toHaveProperty('title')
+    expect(registerTool.mock.calls[1]![0].title).toBe('Add a todo')
+  })
+
   it('reports isSupported: false when no modelContext exists', () => {
     vi.useFakeTimers()
     const { result, unmount } = mountComposable(() =>
@@ -198,6 +209,34 @@ describe('re-registration identity', () => {
     expect(registerTool).toHaveBeenCalledTimes(2)
     expect(tools.size).toBe(1)
     expect(tools.get('add-todo')?.description).toBe('Add an item to the list')
+  })
+
+  it('re-registers when the title changes', async () => {
+    const { tools, registerTool } = installFakeModelContext()
+    const title = ref('Add a todo')
+    mountComposable(() => useWebMCPTool({ ...baseOptions, title, execute: () => 'ok' }))
+
+    title.value = 'Add an item'
+    await nextTick()
+
+    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(tools.get('add-todo')?.title).toBe('Add an item')
+  })
+
+  it('drops the title again when it becomes undefined or null', async () => {
+    const { registerTool } = installFakeModelContext()
+    const title = ref<string | undefined | null>('Add a todo')
+    mountComposable(() => useWebMCPTool({ ...baseOptions, title, execute: () => 'ok' }))
+
+    title.value = undefined
+    await nextTick()
+    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(registerTool.mock.calls[1]![0]).not.toHaveProperty('title')
+
+    // null from a JS caller reads as unset too, without a re-registration.
+    title.value = null
+    await nextTick()
+    expect(registerTool).toHaveBeenCalledTimes(2)
   })
 
   it('does not churn on a content-equal schema object', async () => {

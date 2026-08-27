@@ -21,6 +21,8 @@ import type {
 export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = unknown> {
   /** Tool identifier the agent sees. 1–128 characters of `[a-zA-Z0-9_.-]`. */
   name: MaybeRefOrGetter<string>
+  /** Human-readable label for user-agent UI. Agents reason over `name` and `description`. */
+  title?: MaybeRefOrGetter<string | null | undefined>
   /** Natural-language description for the agent. Chrome's guidance: keep under 500 characters. */
   description: MaybeRefOrGetter<string>
   /** JSON Schema for the tool arguments. Compared by content, not identity. */
@@ -158,12 +160,13 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   let started = false
   let warnedLegacy = false
 
-  // Only agent-visible fields re-register the tool, compared by content so
-  // inline object literals and reactive sources don't churn on every change
-  // that serializes identically.
+  // Only what the browser receives at registration re-registers the tool,
+  // compared by content so inline object literals and reactive sources don't
+  // churn on every change that serializes identically.
   const registrationKey = computed(() =>
     JSON.stringify([
       toValue(options.name),
+      toValue(options.title) ?? null,
       toValue(options.description),
       toValue(options.inputSchema) ?? null,
       toValue(options.annotations) ?? null,
@@ -245,8 +248,12 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       return
     }
 
+    // `null` from a JS caller must not reach the browser: WebIDL would turn
+    // it into the label "null". The key above already treats it as unset.
+    const title = toValue(options.title)
     const descriptor: WebMCPToolDescriptor = {
       name: toValue(options.name),
+      ...(title != null ? { title } : {}),
       description: toValue(options.description),
       inputSchema: toValue(options.inputSchema),
       annotations: toValue(options.annotations),
