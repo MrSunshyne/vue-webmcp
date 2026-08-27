@@ -139,7 +139,7 @@ describe('discovery', () => {
 })
 
 describe('execution', () => {
-  it('runs a discovered tool with an object argument and a signal and parses the JSON result', async () => {
+  it('runs a discovered tool with a signal and parses the JSON result', async () => {
     const { context } = installFakeModelContext()
     const execute = vi.fn((args: { text: string }) => `added ${args.text}`)
     mountComposable(() => useWebMCPTool({ name: 'add', description: 'Add', execute }))
@@ -150,19 +150,61 @@ describe('execution', () => {
     const tool = result.tools.value[0]!
     const output = await result.execute(tool, { text: 'milk' }, { signal: controller.signal })
 
-    expect(context.executeTool).toHaveBeenCalledWith(tool, { text: 'milk' }, { signal: controller.signal })
+    // The JSON string Chrome shipped with goes first; the fake accepts it.
+    expect(context.executeTool).toHaveBeenCalledWith(tool, '{"text":"milk"}', {
+      signal: controller.signal,
+    })
     expect(execute).toHaveBeenCalledWith({ text: 'milk' }, { signal: expect.any(AbortSignal) })
     expect(output).toEqual({ content: [{ type: 'text', text: 'added milk' }] })
   })
 
-  it('can hand arguments over as a JSON string for older Chrome builds', async () => {
+  it('switches to the object form when the browser rejects the string with a TypeError', async () => {
     const { context } = installFakeModelContext()
     mountComposable(() => useWebMCPTool({ name: 'add', description: 'Add', execute: () => 'ok' }))
-    const { result } = mountComposable(() => useRegisteredTools({ argumentFormat: 'json' }))
+    const { result } = mountComposable(() => useRegisteredTools())
     await settle()
 
-    await result.execute(result.tools.value[0]!, { text: 'milk' })
-    expect(context.executeTool).toHaveBeenCalledWith(expect.anything(), '{"text":"milk"}', {})
+    // An `object` parameter fails WebIDL conversion for a string, before the tool runs.
+    const objectOnly = context.executeTool.getMockImplementation()!
+    context.executeTool.mockImplementation((tool, args, options) =>
+      typeof args === 'string'
+        ? Promise.reject(new TypeError("parameter 2 is not of type 'Object'"))
+        : objectOnly(tool, args, options),
+    )
+
+    const tool = result.tools.value[0]!
+    await result.execute(tool, { text: 'a' })
+    await result.execute(tool, { text: 'b' })
+
+    const payloads = context.executeTool.mock.calls.map(call => call[1])
+    expect(payloads).toEqual(['{"text":"a"}', { text: 'a' }, { text: 'b' }])
+  })
+
+  it('does not retry when the tool itself fails, and rejects with the browser error', async () => {
+    const { context } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ name: 'add', description: 'Add', execute: () => 'ok' }))
+    const { result } = mountComposable(() => useRegisteredTools())
+    await settle()
+
+    context.executeTool.mockRejectedValueOnce(new DOMException('boom', 'UnknownError'))
+    await expect(result.execute(result.tools.value[0]!)).rejects.toMatchObject({
+      name: 'UnknownError',
+    })
+    expect(context.executeTool).toHaveBeenCalledTimes(1)
+  })
+
+  it('honours an explicit argumentFormat', async () => {
+    const { context } = installFakeModelContext()
+    mountComposable(() => useWebMCPTool({ name: 'add', description: 'Add', execute: () => 'ok' }))
+    const asObject = mountComposable(() => useRegisteredTools({ argumentFormat: 'object' }))
+    const asJson = mountComposable(() => useRegisteredTools({ argumentFormat: 'json' }))
+    await settle()
+
+    await asObject.result.execute(asObject.result.tools.value[0]!, { text: 'milk' })
+    await asJson.result.execute(asJson.result.tools.value[0]!, { text: 'milk' })
+
+    const payloads = context.executeTool.mock.calls.map(call => call[1])
+    expect(payloads).toEqual([{ text: 'milk' }, '{"text":"milk"}'])
   })
 
   it('returns a non-JSON result as is', async () => {
@@ -176,16 +218,18 @@ describe('execution', () => {
     expect(await result.execute(result.tools.value[0]!)).toEqual({ content: [] })
   })
 
-  it('rejects when the consumer API is absent', async () => {
+  it('rejects with NotSupportedError when the consumer API is absent', async () => {
+    // Fake timers keep this instance's late-injection poll out of later tests.
+    vi.useFakeTimers()
     const { result } = mountComposable(() => useRegisteredTools())
     await expect(
       result.execute({ name: 'x', title: '', description: '', window, origin: location.origin }),
-    ).rejects.toThrow(/not available/)
+    ).rejects.toMatchObject({ name: 'NotSupportedError' })
   })
 })
 
 describe('scope handling', () => {
-  it('stops following toolchange once the scope is disposed', async () => {
+  it('stops following toolchange and goes inert once the scope is disposed', async () => {
     const { context } = installFakeModelContext()
     const scope = effectScope()
     let result: UseRegisteredToolsReturn | undefined
@@ -200,5 +244,13 @@ describe('scope handling', () => {
     await settle()
     expect(context.getTools).toHaveBeenCalledTimes(1)
     expect(result?.tools.value).toEqual([])
+
+    // A call after disposal neither queries nor executes anything.
+    await result!.refresh()
+    expect(context.getTools).toHaveBeenCalledTimes(1)
+    await expect(
+      result!.execute({ name: 'later', title: '', description: '', window, origin: location.origin }),
+    ).rejects.toMatchObject({ name: 'NotSupportedError' })
+    expect(context.executeTool).not.toHaveBeenCalled()
   })
 })

@@ -34,10 +34,11 @@ export class FakeModelContext extends EventTarget implements ModelContext {
     this.dispatchEvent(new Event('toolchange'))
   })
 
-  // Alphabetical, like Chrome. `window` and `origin` are this document's.
+  // Sorted by name in code-unit order, as the spec says. `window` and
+  // `origin` are this document's.
   readonly getTools = vi.fn(async (_options: GetToolsOptions = {}): Promise<RegisteredTool[]> =>
     [...this.tools.values()]
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
       .map(tool => ({
         name: tool.name,
         title: tool.title ?? '',
