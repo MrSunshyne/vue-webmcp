@@ -18,5 +18,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test
+      - run: pnpm --filter vue-webmcp size
       - run: pnpm --filter playground-vite build
       - run: pnpm --filter playground-nuxt build
