@@ -124,6 +124,14 @@ export default defineNuxtPlugin(nuxtApp => {
 })
 ```
 
+## Agent skill
+
+The module ships a skill for coding agents at `skills/nuxt-webmcp/SKILL.md`, covering the
+Nuxt-specific parts: auto-imports, token config, budgets and the `WEBMCP_CONFIG` plugin.
+It builds on the [`vue-webmcp` skill](../vue-webmcp#agent-skill) for tool authoring.
+Agents following the [TanStack Intent](https://tanstack.com/intent) convention pick both
+up with `npx @tanstack/intent install`.
+
 ## Not the same thing as nuxt-mcp
 
 They sound alike and are complementary, not competing:
