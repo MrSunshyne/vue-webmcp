@@ -52,7 +52,8 @@
     "build": "unbuild",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "pnpm build && pnpm test"
+    "size": "node scripts/check-size.mjs",
+    "prepublishOnly": "pnpm build && pnpm test && pnpm size"
   },
   "peerDependencies": {
     "vue": ">=3.3.0"
