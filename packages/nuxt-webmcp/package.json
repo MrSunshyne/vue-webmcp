@@ -33,11 +33,13 @@
   "types": "./dist/types.d.mts",
   "files": [
     "dist",
+    "skills",
     "NOTICE"
   ],
   "scripts": {
     "build": "nuxt-module-build build",
-    "prepublishOnly": "pnpm build"
+    "skill": "node scripts/check-skill.mjs",
+    "prepublishOnly": "pnpm build && pnpm skill"
   },
   "dependencies": {
     "@nuxt/kit": "^4.5.2",
