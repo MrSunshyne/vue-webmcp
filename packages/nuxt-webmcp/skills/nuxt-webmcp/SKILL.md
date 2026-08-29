@@ -8,7 +8,7 @@ description: >
 metadata:
   type: framework
   library: 'nuxt-webmcp'
-  library_version: '0.3.0'
+  library_version: '0.3.1'
   framework: nuxt
 requires:
   - 'vue-webmcp#vue-webmcp'
