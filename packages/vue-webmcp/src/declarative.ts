@@ -85,7 +85,11 @@ export interface UseWebMCPFormReturn {
   attrs: ComputedRef<WebMCPFormAttrs>
   /** The submit handler on its own, for a form that sets the attributes itself. */
   onSubmit: (event: Event) => Promise<void>
-  /** An agent is filling the form in (`toolactivated` until `toolcancel` or submit). */
+  /**
+   * An agent is filling the form in (`toolactivated` until `toolcancel` or
+   * submit). Stays `false` for an autosubmit form, which the browser submits
+   * before it activates; `isSubmitting` covers that call.
+   */
   isAgentActive: Readonly<Ref<boolean>>
   isSubmitting: Readonly<Ref<boolean>>
   /** What the last submission threw, until the next one. */
@@ -115,6 +119,14 @@ export function useWebMCPForm<Fields extends FormFields = FormFields, Result = u
   options: UseWebMCPFormOptions<Fields, Result>,
 ): UseWebMCPFormReturn {
   const isAgentActive = ref(false)
+  // Chromium dispatches `submit` before `toolactivated` for a `toolautosubmit`
+  // form, and dispatches no `toolcancel` for one, so an activation can arrive
+  // after the submission it belongs to has been handled. An agent submission
+  // that starts with no activation in progress therefore owes this form one
+  // `toolactivated`, which `onActivated` consumes instead of setting the flag.
+  // Nothing is owed when the activation arrives first, so the pairing holds if
+  // the two events ever swap order. See issue #29.
+  let activationOwed = false
   const isSubmitting = ref(false)
   const error = ref<Error | null>(null)
 
@@ -136,6 +148,10 @@ export function useWebMCPForm<Fields extends FormFields = FormFields, Result = u
     const argsPayload = config?.includeArgs ? { args: fields } : {}
     emitHook(config?.onToolCall, { name, ...argsPayload })
     const started = now()
+
+    // Synchronously, before any await: for an autosubmit form the activation
+    // lands in a later task, which for a slow `execute` is while it still runs.
+    if (submit.agentInvoked && !isAgentActive.value) activationOwed = true
 
     isSubmitting.value = true
     error.value = null
@@ -192,10 +208,18 @@ export function useWebMCPForm<Fields extends FormFields = FormFields, Result = u
   if (typeof window !== 'undefined') {
     const matches = (event: WebMCPEvent): boolean => event.toolName === toValue(options.name)
     const onActivated = (event: WebMCPEvent): void => {
-      if (matches(event)) isAgentActive.value = true
+      if (!matches(event)) return
+      // The tail of an autosubmit call this form has already answered.
+      if (activationOwed) {
+        activationOwed = false
+        return
+      }
+      isAgentActive.value = true
     }
     const onCancel = (event: WebMCPEvent): void => {
-      if (matches(event)) isAgentActive.value = false
+      if (!matches(event)) return
+      activationOwed = false
+      isAgentActive.value = false
     }
     const listen = (): void => {
       window.addEventListener('toolactivated', onActivated)
@@ -215,6 +239,7 @@ export function useWebMCPForm<Fields extends FormFields = FormFields, Result = u
       watch(
         () => toValue(options.name),
         () => {
+          activationOwed = false
           isAgentActive.value = false
         },
       )

@@ -58,6 +58,22 @@ function activation(type: 'toolactivated' | 'toolcancel', toolName: string): Eve
   return Object.assign(new Event(type), { toolName })
 }
 
+// The autosubmit form the ordering tests share, mounted and listening.
+async function mountAutosubmitForm(execute: UseWebMCPFormOptions['execute']) {
+  const mounted = mountForm({ name: 'lookup', description: 'Look up', autosubmit: true, execute })
+  await nextTick()
+  return mounted
+}
+
+// One agent call on an autosubmit form, in Chromium's order: the submission,
+// then the activation for it a task later, and no toolcancel.
+async function autosubmit(form: HTMLFormElement): Promise<void> {
+  form.dispatchEvent(agentSubmit().event)
+  await settle()
+  window.dispatchEvent(activation('toolactivated', 'lookup'))
+  await settle()
+}
+
 async function settle(): Promise<void> {
   await nextTick()
   await new Promise(resolve => setTimeout(resolve, 0))
@@ -253,6 +269,62 @@ describe('activation', () => {
     unmount()
     window.dispatchEvent(activation('toolactivated', 'create_note'))
     expect(result.isAgentActive.value).toBe(false)
+  })
+
+  // Chromium's ordering for a `toolautosubmit` form, from issue #29: `submit`
+  // first, `toolactivated` a task later, and no `toolcancel`. Driving
+  // `onSubmit` alone misses this, so these dispatch the events in that order.
+  describe('an autosubmit form, activated after it submits', () => {
+    it('does not turn the flag back on when execute settles first', async () => {
+      const { result, form } = await mountAutosubmitForm(() => 'ok')
+
+      await autosubmit(form)
+      expect(result.isAgentActive.value).toBe(false)
+
+      // A second call behaves the same: one submission owes one activation.
+      await autosubmit(form)
+      expect(result.isAgentActive.value).toBe(false)
+    })
+
+    it('does not turn the flag on when the activation lands mid-execute', async () => {
+      let finish!: (value: string) => void
+      const { result, form } = await mountAutosubmitForm(
+        () => new Promise<string>(resolve => (finish = resolve)),
+      )
+
+      form.dispatchEvent(agentSubmit().event)
+      expect(result.isSubmitting.value).toBe(true)
+      await nextTick()
+      window.dispatchEvent(activation('toolactivated', 'lookup'))
+      expect(result.isAgentActive.value).toBe(false)
+
+      finish('ok')
+      await settle()
+      expect(result.isAgentActive.value).toBe(false)
+      expect(result.isSubmitting.value).toBe(false)
+    })
+
+    it('still follows a later activation of its own', async () => {
+      const { result, form } = await mountAutosubmitForm(() => 'ok')
+
+      await autosubmit(form)
+      // Nothing is owed any more, so a fresh activation reads as a real one.
+      window.dispatchEvent(activation('toolactivated', 'lookup'))
+      expect(result.isAgentActive.value).toBe(true)
+
+      window.dispatchEvent(activation('toolcancel', 'lookup'))
+      expect(result.isAgentActive.value).toBe(false)
+    })
+
+    it('leaves a person submitting it alone', async () => {
+      const { result, form } = await mountAutosubmitForm(() => 'ok')
+
+      // No agentInvoked, so nothing is owed and the next activation counts.
+      form.dispatchEvent(new SubmitEvent('submit', { cancelable: true, bubbles: true }))
+      await settle()
+      window.dispatchEvent(activation('toolactivated', 'lookup'))
+      expect(result.isAgentActive.value).toBe(true)
+    })
   })
 
   it('listens straight away outside a component and stops with the scope', () => {

@@ -300,7 +300,7 @@ const { attrs, isAgentActive, isSubmitting, error } = useWebMCPForm({
 
 The handler calls `preventDefault()` itself, which the spec requires before `respondWith()`, so the form's `action` never navigates: the handler is the submission, for people and agents alike. Once an agent has filled the form in, the person's click on Submit arrives with `agentInvoked` set and completes the tool call. The app-level [call hooks](#configuration-hooks-and-budgets) see form submissions too, under the form's `toolname`; the character-budget checks do not apply, since the browser derives a form tool's description from its attributes.
 
-`isAgentActive` follows the `toolactivated` / `toolcancel` events for this form's tool name, so you can bind a class instead of the `:tool-form-active` pseudo-class, which some CSS toolchains reject as unknown.
+`isAgentActive` follows the `toolactivated` / `toolcancel` events for this form's tool name, so you can bind a class instead of the `:tool-form-active` pseudo-class, which some CSS toolchains reject as unknown. For an `autosubmit` form Chrome submits before it dispatches `toolactivated`, and dispatches no `toolcancel`, so `isAgentActive` stays `false` there; use `isSubmitting` to show that call.
 
 `SubmitEvent.agentInvoked` / `respondWith()` and the `WebMCPEvent` behind `toolactivated` / `toolcancel` are declared by this package, with the shapes Chromium implements, until `webmcp-types` covers the declarative API.
 
