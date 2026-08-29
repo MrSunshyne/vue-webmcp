@@ -46,6 +46,7 @@
   "types": "./dist/index.d.mts",
   "files": [
     "dist",
+    "skills",
     "NOTICE"
   ],
   "scripts": {

@@ -7,14 +7,18 @@
  *     usually a build config emitting files nobody imports.
  *
  * Raise a budget deliberately, in the same commit as the growth that needs it.
+ *
+ * Also checks that the agent skill declares the version it ships with: a skill
+ * claiming an older API than the package is worse than no skill at all.
  */
 import { execFileSync } from 'node:child_process'
 import { gzipSync } from 'node:zlib'
 import { readFileSync } from 'node:fs'
 
 const BUDGETS = {
-  // npm's install-size number, in bytes.
-  unpacked: 86_000,
+  // npm's install-size number, in bytes. Raised from 86,000 to make room for
+  // the 7.5 kB agent skill, which is documentation and reaches no bundle.
+  unpacked: 94_000,
   // gzipped bytes per entry point, unminified — a proxy, not the shipped size.
   entries: {
     'dist/index.mjs': 5_000,
@@ -50,7 +54,13 @@ for (const [name, size, budget] of report) {
   console.log(`${name.padEnd(width)}  ${String(size).padStart(7)} / ${budget}  (${pct}%)`)
 }
 
+const { version } = JSON.parse(readFileSync('package.json', 'utf8'))
+const skill = readFileSync('skills/vue-webmcp/SKILL.md', 'utf8')
+if (!skill.includes(`library_version: '${version}'`)) {
+  failures.push(`SKILL.md does not declare library_version '${version}'`)
+}
+
 if (failures.length > 0) {
-  console.error(`\nSize budget exceeded:\n${failures.map((f) => `  - ${f}`).join('\n')}`)
+  console.error(`\nPublish checks failed:\n${failures.map((f) => `  - ${f}`).join('\n')}`)
   process.exit(1)
 }

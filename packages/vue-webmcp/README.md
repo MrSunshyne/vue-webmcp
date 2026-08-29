@@ -374,6 +374,14 @@ expect(await page.evaluate(() => stub().call('save_note', { title: 'x' }))).toEq
 
 Puppeteer: `page.evaluateOnNewDocument(MODEL_CONTEXT_INIT_SCRIPT)`. Import the string from Node (a fixture or setup file); a bundler that re-transforms the package with name-keeping helpers would leave them in the string.
 
+## Agent skill
+
+The package ships a skill for coding agents at `skills/vue-webmcp/SKILL.md`, so it lands
+in `node_modules` with the version you installed. It covers the composables, the testing
+stub, and the mistakes models make from older training data. Agents that follow the
+[TanStack Intent](https://tanstack.com/intent) convention pick it up with
+`npx @tanstack/intent install`; anything else can read the file where it sits.
+
 ## Security notes
 
 Tools are an attack surface as much as an interface. Minimum hygiene:
