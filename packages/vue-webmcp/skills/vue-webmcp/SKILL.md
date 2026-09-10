@@ -224,8 +224,10 @@ install. Full documentation is in the package README.
 ## Security
 
 Tools act with the signed-in user's session. Mark non-mutating tools
-`annotations: { readOnlyHint: true }`, and mark tools whose output embeds user or
+`annotations: { readOnlyHint: true }`, mark tools whose output embeds user or
 third-party content `untrustedContentHint: true` so agents do not follow it as
-instructions. Never expose an operation as a tool that you would not expose as an
+instructions, and mark tools with significant, real-world, or hard-to-reverse
+effects (booking, paying, sending) `consequentialHint: true` so agents can require
+explicit user confirmation first. Never expose an operation as a tool that you would not expose as an
 unauthenticated-intent button. Chrome's character budgets are 30 per name, 500 per tool
 description, 150 per parameter description and 1.5K per output.

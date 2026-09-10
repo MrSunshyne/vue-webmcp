@@ -13,7 +13,11 @@ export interface StubTool {
   title?: string
   description: string
   inputSchema?: object
-  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }
+  annotations?: {
+    readOnlyHint?: boolean
+    untrustedContentHint?: boolean
+    consequentialHint?: boolean
+  }
   execute: (args: unknown, options?: { signal: AbortSignal }) => unknown
 }
 

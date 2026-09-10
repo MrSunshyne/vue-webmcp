@@ -55,6 +55,15 @@ describe('installModelContextStub', () => {
     })
   })
 
+  it('round-trips all three annotation hints through registerTool and getTools', async () => {
+    const stub = installModelContextStub()
+    const annotations = { readOnlyHint: true, untrustedContentHint: true, consequentialHint: true }
+    await stub.registerTool({ name: 'book', description: 'Book it', annotations, execute: () => 'ok' })
+
+    const [tool] = await stub.getTools()
+    expect(tool!.annotations).toEqual(annotations)
+  })
+
   it('rejects a duplicate name and hands a JSON-string argument to the tool', async () => {
     const stub = installModelContextStub()
     const execute = vi.fn((args: unknown) => args)
