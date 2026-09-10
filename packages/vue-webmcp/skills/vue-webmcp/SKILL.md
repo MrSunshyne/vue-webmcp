@@ -8,7 +8,7 @@ description: >
 metadata:
   type: framework
   library: 'vue-webmcp'
-  library_version: '0.3.3'
+  library_version: '0.4.0'
   framework: vue
 sources:
   - 'MrSunshyne/vue-webmcp:packages/vue-webmcp/README.md'
