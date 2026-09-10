@@ -4,7 +4,7 @@ A Vue composable that registers a [WebMCP](https://github.com/webmachinelearning
 
 The Vue counterpart to [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/use-webmcp-tool) (React, GoogleChromeLabs): agents observe identical registration behavior and results from both — the normalization matrix and re-registration rules are kept in behavioral lockstep.
 
-> **Status (2026-08-27):** built against the current WebMCP spec draft: the imperative API on **`document.modelContext`** (`registerTool` + `AbortSignal` unregistration), with `execute(args, { signal })` from Chrome 153. WebMCP is experimental: origin trial in Chrome (149→156; the [Intent to Experiment](https://groups.google.com/a/chromium.org/g/blink-dev/c/gmYffo5WOE8/m/OJxuQRP3AAAJ) estimates shipping in 157) and Edge (from 150), local testing via `chrome://flags/#enable-webmcp-testing`. ChatGPT Desktop's built-in browser consumes WebMCP tools as [Site tools](https://learn.chatgpt.com/docs/webmcp) and Brave Leo has experimental support; the spec tracks this in its [implementation status](https://github.com/webmachinelearning/webmcp/blob/main/implementation-status.md). WebKit has formally [opposed](https://github.com/WebKit/standards-positions/issues/670) the proposal; Mozilla is [neutral](https://github.com/mozilla/standards-positions/issues/1412). The composable feature-detects and degrades to a no-op everywhere the API is absent — treat it as progressive enhancement.
+> **Status (2026-09-10):** built against the current WebMCP spec draft: the imperative API on **`document.modelContext`** (`registerTool` + `AbortSignal` unregistration), with `execute(args, { signal })` in Chrome stable since 153 (2026-09-08). WebMCP is experimental: origin trial in Chrome (149→156; no Intent to Ship yet — the [Intent to Experiment](https://groups.google.com/a/chromium.org/g/blink-dev/c/gmYffo5WOE8/m/OJxuQRP3AAAJ) estimates 157) and Edge (from 150), local testing via `chrome://flags/#enable-webmcp-testing`. ChatGPT Desktop's built-in browser consumes WebMCP tools as [Site tools](https://learn.chatgpt.com/docs/webmcp) and Brave Leo has experimental support; the spec tracks this in its [implementation status](https://github.com/webmachinelearning/webmcp/blob/main/implementation-status.md) and now sketches a [service-worker counterpart](https://github.com/webmachinelearning/webmcp/blob/main/docs/service-workers.md) (this package is document-scoped by design). WebKit has formally [opposed](https://github.com/WebKit/standards-positions/issues/670) the proposal; Mozilla is [neutral](https://github.com/mozilla/standards-positions/issues/1412). The composable feature-detects and degrades to a no-op everywhere the API is absent — treat it as progressive enhancement.
 
 ## Install
 
@@ -212,7 +212,7 @@ async execute({ query }, { signal }) {
 }
 ```
 
-Inside the composable an abort is a failure like any other: `onError` runs and `execute` resolves to an `isError` result. The caller that cancelled has already received the abort reason and does not see that result. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined.
+Inside the composable an abort is a failure like any other: `onError` runs and `execute` resolves to an `isError` result. The caller that cancelled has already received the abort reason and does not see that result. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined — a deliberate divergence from `use-webmcp-tool`, which forwards the browser's arguments verbatim and leaves `options` undefined there.
 
 ### Result normalization
 
@@ -391,6 +391,7 @@ Tools are an attack surface as much as an interface. Minimum hygiene:
 - WebMCP requires a secure, origin-isolated context and is gated by the `tools` Permissions Policy (default `self`); denial surfaces as a `NotAllowedError` in `error`.
 - A tool is visible to the registering page, its same-origin frames, and the browser's own agent by default. `exposedTo: ['https://agent.example']` extends that to specific secure origins, for example an iframe-hosted agent, which also needs `allow="tools"` on its frame and `getTools({ fromOrigins })` on its side. An entry that is not a potentially trustworthy origin makes registration fail: `error` holds a `SecurityError` and the tool is not registered.
 - Registration is *site-controlled*: never expose an operation as a tool that you wouldn't expose as an unauthenticated-intent button — the agent acts with the signed-in user's session.
+- Beyond security, the spec's [Best Practices](https://github.com/webmachinelearning/webmcp#best-practices) section and Chrome's [best-practices guide](https://developer.chrome.com/docs/ai/webmcp/best-practices) cover tool strategy: budget, naming, dynamic registration, and validation that lets an agent self-correct.
 
 ## Trying it locally
 
