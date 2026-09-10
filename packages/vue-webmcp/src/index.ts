@@ -22,6 +22,7 @@ export { toErrorResponse, toToolResponse } from './normalize'
 export type {
   ExecuteToolOptions,
   GetToolsOptions,
+  InferToolArgs,
   ModelContext,
   RegisterToolOptions,
   RegisteredTool,
