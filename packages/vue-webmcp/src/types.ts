@@ -18,6 +18,24 @@ export interface WebMCPToolResponse {
 }
 
 export type WebMCPToolAnnotations = WebMCP.ToolAnnotations
+
+/**
+ * Execute-argument type inferred from a literal JSON Schema, through the
+ * spec org's `WebMCP.ModelContextToolFromSchema` (webmcp-types 0.1.6+):
+ * reads `type`, `enum`, `const`, `items`, `properties` and `required`.
+ * A shape it cannot read infers as `Record<string, unknown>`.
+ */
+export type InferToolArgs<Schema extends object> = Parameters<
+  WebMCP.ModelContextToolFromSchema<Schema>['execute']
+>[0]
+
+/**
+ * What a literal input schema looks like, as opposed to a ref or getter of
+ * one: the discriminating keys the inference reads. Keeps schema-typed
+ * overloads from capturing reactive schemas or explicit `Args` type
+ * arguments, which fall through to the manually-typed signature.
+ */
+export type ToolInputSchemaShape = { type: string } | { properties: object }
 export type WebMCPToolExecuteOptions = WebMCP.ToolExecuteCallbackOptions
 export type RegisterToolOptions = WebMCP.ModelContextRegisterToolOptions
 export type RegisteredTool = WebMCP.RegisteredTool

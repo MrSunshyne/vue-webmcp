@@ -23,6 +23,8 @@ import {
 } from './context'
 import { toErrorResponse, toToolResponse } from './normalize'
 import type {
+  InferToolArgs,
+  ToolInputSchemaShape,
   WebMCPToolAnnotations,
   WebMCPToolDescriptor,
   WebMCPToolExecuteOptions,
@@ -133,7 +135,17 @@ function validateDescriptor(descriptor: WebMCPToolDescriptor, mode: BudgetMode):
  *
  * Feature-detects `document.modelContext` and degrades to a no-op everywhere
  * the API is absent, including during SSR.
+ *
+ * A literal `inputSchema` types `execute`'s arguments by inference (the
+ * first overload); a ref/getter schema or an explicit `Args` type argument
+ * uses the manually-typed signature.
  */
+export function useWebMCPTool<const Schema extends ToolInputSchemaShape, Result = unknown>(
+  options: UseWebMCPToolOptions<InferToolArgs<Schema>, Result> & { inputSchema: Schema },
+): UseWebMCPToolReturn
+export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
+  options: UseWebMCPToolOptions<Args, Result>,
+): UseWebMCPToolReturn
 export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
   options: UseWebMCPToolOptions<Args, Result>,
 ): UseWebMCPToolReturn {

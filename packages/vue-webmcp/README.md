@@ -12,7 +12,7 @@ The Vue counterpart to [`use-webmcp-tool`](https://github.com/GoogleChromeLabs/u
 npm install vue-webmcp
 ```
 
-Requires Vue 3.3+ as a peer dependency. Ships as ESM with TypeScript types. Its only dependency is [`webmcp-types`](https://github.com/webmachinelearning/webmcp-types), the spec's type definitions (no runtime code); importing `vue-webmcp` is enough to get `document.modelContext` typed, with no separate install. If you do install `webmcp-types` yourself, keep it on 0.1.x so the two copies agree.
+Requires Vue 3.3+ as a peer dependency. Ships as ESM with TypeScript types. Its only dependency is [`webmcp-types`](https://github.com/webmachinelearning/webmcp-types), the spec's type definitions (no runtime code); importing `vue-webmcp` is enough to get `document.modelContext` typed, with no separate install. If you do install `webmcp-types` yourself, keep it on 0.1.x so the two copies agree. `webmcp-types` 0.1.6+ needs TypeScript 5.0 or newer.
 
 Using Nuxt? See [`nuxt-webmcp`](../nuxt-webmcp) for auto-imports and origin-trial token injection.
 
@@ -168,7 +168,7 @@ const { isSupported, isRegistered, error, byName } = useWebMCPTools(definitions,
 })
 ```
 
-Shared `enabled`, `annotations`, `exposedTo` and `onError` apply to each tool that does not set its own (a shared `annotations` replaces, it does not merge). Each tool still goes through `useWebMCPTool`, so the lifecycle, re-registration and normalization rules below apply unchanged, and one tool failing to register leaves the others registered; `error` holds the first failure. `isRegistered` counts only the tools that are enabled, so a group with its read tools on and its write tools off still reports registered. `byName` is keyed by each tool's name at setup time. An inline definition in the list gets `args: any` in `execute`; annotate the parameter, or write the tool with `defineWebMCPTool` to keep it typed.
+Shared `enabled`, `annotations`, `exposedTo` and `onError` apply to each tool that does not set its own (a shared `annotations` replaces, it does not merge). Each tool still goes through `useWebMCPTool`, so the lifecycle, re-registration and normalization rules below apply unchanged, and one tool failing to register leaves the others registered; `error` holds the first failure. `isRegistered` counts only the tools that are enabled, so a group with its read tools on and its write tools off still reports registered. `byName` is keyed by each tool's name at setup time. An inline definition in the list gets `args: any` in `execute`; annotate the parameter, or write the tool with `defineWebMCPTool`, which infers the argument types from a literal `inputSchema` just like `useWebMCPTool` (see [Reactivity rules](#reactivity-rules)).
 
 ## API
 
@@ -198,6 +198,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 - `name`, `title`, `description`, `inputSchema`, `annotations`, `exposedTo`, and `enabled` accept plain values, refs, or getters. Any change to them re-registers the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
 - `title` is a label the user agent may use when it refers to the tool in its own UI; agents work from `name` and `description`. Omit it and the user agent is free to display a value of its own. The spec recommends localizing it to the user's language.
 - `execute` is *not* reactive input and never triggers re-registration. It reads reactive state live at call time — `setup()` runs once in Vue, so there is no stale-closure problem and no ref-mirroring dance.
+- A literal `inputSchema` types `execute`'s arguments by inference — `{ type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }` gives `execute` `{ text: string }`, with `enum`, `const` and `items` handled too (the spec org's [`webmcp-types`](https://github.com/webmachinelearning/webmcp-types) does the reading). Hoist a schema into a variable with `as const` to keep the inference (without it the widened types infer only the property names). A ref or getter schema, or an explicit `useWebMCPTool<Args>()` type argument, uses the manually-typed signature instead, where args default to `Record<string, unknown>`.
 - The `Args` type parameter is unconstrained on purpose. If you wrap the composable and constrain it with `Args extends Record<string, unknown>`, an `interface` will not satisfy that constraint (interfaces have no implicit index signature) while a `type` alias with the same members will; declare argument shapes with `type`, or leave the constraint off.
 - On the server (SSR) the composable is inert: no `document` access, `isSupported` stays `false`, registration happens after mount on the client. No hydration mismatch.
 

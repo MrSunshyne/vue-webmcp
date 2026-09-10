@@ -1,7 +1,7 @@
 import { computed, readonly, toValue } from 'vue'
 import type { MaybeRefOrGetter, Ref } from 'vue'
 import { isDev, warn } from './context'
-import type { WebMCPToolAnnotations } from './types'
+import type { InferToolArgs, ToolInputSchemaShape, WebMCPToolAnnotations } from './types'
 import { useWebMCPTool } from './useWebMCPTool'
 import type { UseWebMCPToolOptions, UseWebMCPToolReturn } from './useWebMCPTool'
 
@@ -10,7 +10,31 @@ import type { UseWebMCPToolOptions, UseWebMCPToolReturn } from './useWebMCPTool'
  * (importable, testable, no component needed to write it) and keep the
  * inferred `Args` and `Result` types, and its literal name, when it is
  * registered later.
+ *
+ * As with `useWebMCPTool`, a literal `inputSchema` types `execute`'s
+ * arguments by inference; a ref/getter schema or an explicit `Args` type
+ * argument uses the manually-typed signature.
  */
+export function defineWebMCPTool<
+  const Schema extends ToolInputSchemaShape,
+  Result = unknown,
+  const Name extends MaybeRefOrGetter<string> = string,
+>(
+  definition: Omit<UseWebMCPToolOptions<InferToolArgs<Schema>, Result>, 'name'> & {
+    name: Name
+    inputSchema: Schema
+  },
+): Omit<UseWebMCPToolOptions<InferToolArgs<Schema>, Result>, 'name'> & {
+  name: Name
+  inputSchema: Schema
+}
+export function defineWebMCPTool<
+  Args = Record<string, unknown>,
+  Result = unknown,
+  const Name extends MaybeRefOrGetter<string> = string,
+>(
+  definition: Omit<UseWebMCPToolOptions<Args, Result>, 'name'> & { name: Name },
+): Omit<UseWebMCPToolOptions<Args, Result>, 'name'> & { name: Name }
 export function defineWebMCPTool<
   Args = Record<string, unknown>,
   Result = unknown,
