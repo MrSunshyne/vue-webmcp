@@ -58,7 +58,7 @@ describe('registration lifecycle', () => {
 
   it('passes annotations through to registerTool', () => {
     const { registerTool } = installFakeModelContext()
-    const annotations = { readOnlyHint: true, untrustedContentHint: false }
+    const annotations = { readOnlyHint: true, untrustedContentHint: false, consequentialHint: true }
     mountComposable(() => useWebMCPTool({ ...baseOptions, annotations, execute: () => 'ok' }))
 
     expect(registerTool).toHaveBeenCalledTimes(1)

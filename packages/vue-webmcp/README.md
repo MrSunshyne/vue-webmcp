@@ -178,7 +178,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
   title,          // MaybeRefOrGetter<string> — human-readable label for user-agent UI (optional)
   description,    // MaybeRefOrGetter<string> — natural-language description for the agent (required)
   inputSchema,    // MaybeRefOrGetter<object> — JSON Schema for the args (optional)
-  annotations,    // MaybeRefOrGetter<{ readOnlyHint?, untrustedContentHint? }> (optional)
+  annotations,    // MaybeRefOrGetter<{ readOnlyHint?, untrustedContentHint?, consequentialHint? }> (optional)
   exposedTo,      // MaybeRefOrGetter<string[]> — secure origins that may also call the tool (optional)
   execute,        // (args, { signal }) => result | Promise<result> (required)
   enabled,        // MaybeRefOrGetter<boolean> — register only while true (default true)
@@ -386,7 +386,7 @@ stub, and the mistakes models make from older training data. Agents that follow 
 
 Tools are an attack surface as much as an interface. Minimum hygiene:
 
-- Mark tools that don't mutate state with `annotations: { readOnlyHint: true }`; mark tools whose output embeds user- or third-party content with `untrustedContentHint: true` so agents don't follow it as instructions.
+- Mark tools that don't mutate state with `annotations: { readOnlyHint: true }`; mark tools whose output embeds user- or third-party content with `untrustedContentHint: true` so agents don't follow it as instructions; mark tools with significant, real-world, or hard-to-reverse effects — booking, paying, sending — with `consequentialHint: true` so agents can require explicit user confirmation first.
 - Stay within Chrome's [character budgets](https://developer.chrome.com/docs/ai/webmcp/secure-tools): 500 characters per tool description, 150 per parameter description, 30 per tool or parameter name, 1.5K per tool output. Dev builds warn when you exceed any of them, and when a name is outside the spec grammar (`[a-zA-Z0-9_.-]{1,128}`); `budgets: 'error'` in the [configuration](#configuration-hooks-and-budgets) makes them fail instead, which is what you want in a test run.
 - WebMCP requires a secure, origin-isolated context and is gated by the `tools` Permissions Policy (default `self`); denial surfaces as a `NotAllowedError` in `error`.
 - A tool is visible to the registering page, its same-origin frames, and the browser's own agent by default. `exposedTo: ['https://agent.example']` extends that to specific secure origins, for example an iframe-hosted agent, which also needs `allow="tools"` on its frame and `getTools({ fromOrigins })` on its side. An entry that is not a potentially trustworthy origin makes registration fail: `error` holds a `SecurityError` and the tool is not registered.
