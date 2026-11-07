@@ -21,9 +21,9 @@ const BUDGETS = {
   // from 94,000 for the README and skill text on the debugging annotation,
   // then to 96,000 for the docs on where the activation events fire, to
   // 98,000 for the testing stub's spec cancellation and events, to 99,000
-  // for the docs on cancelled calls, and to 102,000 for the outputSchema
-  // section and its example.
-  unpacked: 102_000,
+  // for the docs on cancelled calls, to 102,000 for the outputSchema section
+  // and its example, and to 104,000 for the 2026-11 spec notes.
+  unpacked: 104_000,
   // gzipped bytes per entry point, unminified — a proxy, not the shipped size.
   entries: {
     'dist/index.mjs': 5_000,

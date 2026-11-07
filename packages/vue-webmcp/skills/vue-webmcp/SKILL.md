@@ -110,7 +110,9 @@ or as a value — so do not write that handling yourself.
 
 `useWebMCPForm()` wires Chrome's declarative API: `v-bind="attrs"` on a `<form>` and one
 `execute` that serves both an agent and a person clicking Submit. Fields arrive as
-`FormData` entries — a string, a `File`, or an array when a name repeats.
+`FormData` entries — a string, a `File`, or an array when a name repeats. The spec dropped
+the declarative API on 2026-10-08; Chrome still ships it in the origin trial, so prefer
+`useWebMCPTool` for anything that does not have to be a form.
 
 ### App-level hooks and budgets
 
