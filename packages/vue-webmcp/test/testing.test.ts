@@ -81,6 +81,104 @@ describe('installModelContextStub', () => {
     expect(execute).toHaveBeenCalledWith({ q: 1 }, { signal: expect.any(AbortSignal) })
   })
 
+  it('rejects a cancelled call at once and aborts the tool, firing toolcancel', async () => {
+    const stub = installModelContextStub()
+    let toolSignal!: AbortSignal
+    // A tool that ignores its signal and never settles.
+    await stub.registerTool({
+      name: 'slow',
+      description: 'Slow',
+      execute: (_args, options) => {
+        toolSignal = options!.signal
+        return new Promise(() => {})
+      },
+    })
+    const cancelled = vi.fn((event: Event) => (event as ToolCancelEvent).toolName)
+    stub.addEventListener('toolcancel', cancelled)
+
+    const controller = new AbortController()
+    const call = stub.executeTool({ name: 'slow' }, {}, { signal: controller.signal })
+    controller.abort(new DOMException('took too long', 'TimeoutError'))
+
+    // The caller gets its own reason; the tool sees a plain AbortError.
+    await expect(call).rejects.toMatchObject({ name: 'TimeoutError', message: 'took too long' })
+    expect(toolSignal.aborted).toBe(true)
+    expect((toolSignal.reason as DOMException).name).toBe('AbortError')
+    expect(cancelled).toHaveBeenCalledTimes(1)
+    expect(cancelled).toHaveReturnedWith('slow')
+  })
+
+  it('stops listening to a long-lived signal once the call finishes', async () => {
+    const stub = installModelContextStub()
+    await stub.registerTool({ name: 'echo', description: 'Echo', execute: () => 'ok' })
+    const cancelled = vi.fn()
+    stub.addEventListener('toolcancel', cancelled)
+    const controller = new AbortController()
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+
+    await stub.executeTool({ name: 'echo' }, {}, { signal: controller.signal })
+    await stub.executeTool({ name: 'echo' }, {}, { signal: controller.signal })
+    controller.abort()
+
+    expect(remove).toHaveBeenCalledTimes(2)
+    expect(cancelled).not.toHaveBeenCalled()
+  })
+
+  it('checks an aborted signal before looking the tool up', async () => {
+    const stub = installModelContextStub()
+    const reason = new DOMException('gone', 'AbortError')
+    await expect(
+      stub.executeTool({ name: 'missing' }, {}, { signal: AbortSignal.abort(reason) }),
+    ).rejects.toBe(reason)
+  })
+
+  it('fires toolactivated after invoking execute, for executeTool and call', async () => {
+    const stub = installModelContextStub()
+    const order: string[] = []
+    await stub.registerTool({
+      name: 'echo',
+      description: 'Echo',
+      execute: () => {
+        order.push('execute')
+        return 'ok'
+      },
+    })
+    stub.addEventListener('toolactivated', event => {
+      order.push(`toolactivated:${(event as ToolActivatedEvent).toolName}`)
+    })
+
+    await stub.executeTool({ name: 'echo' })
+    await stub.call('echo')
+    expect(order).toEqual(['execute', 'toolactivated:echo', 'execute', 'toolactivated:echo'])
+  })
+
+  it('names failures the way the spec does', async () => {
+    const stub = installModelContextStub()
+    await stub.registerTool({
+      name: 'broken',
+      description: 'Broken',
+      execute: () => Promise.reject(new Error('database is down')),
+    })
+    await stub.registerTool({
+      name: 'cyclic',
+      description: 'Cyclic',
+      execute: () => {
+        const value: Record<string, unknown> = {}
+        value.self = value
+        return value
+      },
+    })
+
+    // Only the name crosses, as in Chrome: the tool's own message stays behind.
+    const failure: unknown = await stub.executeTool({ name: 'broken' }).catch(err => err)
+    expect(failure).toMatchObject({ name: 'OperationError', message: 'Tool execution failed.' })
+    await expect(stub.executeTool({ name: 'cyclic' })).rejects.toMatchObject({ name: 'OperationError' })
+    await expect(stub.executeTool({ name: 'broken' }, '"text"')).rejects.toMatchObject({
+      name: 'DataError',
+    })
+    await expect(stub.executeTool({ name: 'missing' })).rejects.toMatchObject({ name: 'NotFoundError' })
+  })
+
   it('unregisters when the signal aborts', async () => {
     const stub = installModelContextStub()
     const controller = new AbortController()

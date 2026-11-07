@@ -40,7 +40,13 @@ export interface ModelContextStub extends EventTarget {
     options?: { signal?: AbortSignal; exposedTo?: readonly string[] },
   ): Promise<void>
   getTools(options?: { fromOrigins?: readonly string[] }): Promise<StubRegisteredTool[]>
-  /** Accepts an object (spec) or a JSON string (older Chrome); resolves with the result as JSON text. */
+  /**
+   * Accepts an object (spec) or a JSON string (Chrome before 155); resolves
+   * with the result as JSON text. As in the spec, aborting `options.signal`
+   * rejects at once with the abort reason and aborts the tool's own signal,
+   * a failing tool rejects with an `OperationError` that does not carry the
+   * tool's error, and an input that is not an object with a `DataError`.
+   */
   executeTool(
     tool: { name: string },
     args?: object | string,
@@ -51,7 +57,8 @@ export interface ModelContextStub extends EventTarget {
   /**
    * Call a tool the way an agent would and get its result back as the value
    * `execute` produced; through `useWebMCPTool` that is the normalized
-   * `{ content, isError }`. Not part of the spec.
+   * `{ content, isError }`. Fires `toolactivated` and, if `options.signal`
+   * aborts first, `toolcancel`, like `executeTool()`. Not part of the spec.
    */
   call(name: string, args?: object, options?: { signal?: AbortSignal }): Promise<WebMCPToolResponse>
 }
@@ -65,14 +72,20 @@ interface StubHost {
 /**
  * Installs a stub `document.modelContext` on `host` (`globalThis` by default)
  * and returns it. Registrations are recorded, the `AbortSignal` that
- * unregisters is honoured, `getTools()` / `executeTool()` / `toolchange`
- * behave as the spec describes, and `names()` / `call()` are there for tests.
+ * unregisters is honoured, `getTools()` / `executeTool()` / `toolchange` /
+ * `toolactivated` / `toolcancel` behave as the spec describes, and
+ * `names()` / `call()` are there for tests.
  */
 export function installModelContextStub(host: StubHost = globalThis as StubHost): ModelContextStub {
   const tools = new Map<string, StubTool>()
   const context = new EventTarget() as ModelContextStub
   const changed = (): void => {
     context.dispatchEvent(new Event('toolchange'))
+  }
+  // A plain Event with the name on it: ToolActivatedEvent and ToolCancelEvent
+  // only exist in browsers that implement WebMCP, not in jsdom.
+  const fire = (type: 'toolactivated' | 'toolcancel', toolName: string): void => {
+    context.dispatchEvent(Object.assign(new Event(type), { toolName }))
   }
   const doc = host.document as (Record<string, unknown> & object) | undefined
   const win = host.window ?? host
@@ -117,18 +130,52 @@ export function installModelContextStub(host: StubHost = globalThis as StubHost)
         origin,
       }))
 
-  context.executeTool = async (tool, args = {}, options = {}) => {
+  context.executeTool = (tool, args = {}, options = {}) => {
+    const { signal } = options
+    const fail = (message: string, name: string): Promise<never> =>
+      Promise.reject(new DOMException(message, name))
+    // The signal comes first, as in the spec and Chromium: an already-aborted
+    // call rejects with its reason whether or not the tool exists.
+    if (signal?.aborted) return Promise.reject(signal.reason)
     const registered = tools.get(tool.name)
-    if (!registered) throw new DOMException(`no tool "${tool.name}"`, 'NotFoundError')
-    // A call made with an already-aborted signal never runs the tool.
-    if (options.signal?.aborted) {
-      throw options.signal.reason ?? new DOMException('execution aborted', 'AbortError')
+    if (!registered) return fail(`no tool "${tool.name}"`, 'NotFoundError')
+    let input: unknown = args
+    try {
+      if (typeof args === 'string') input = JSON.parse(args)
+    } catch {
+      input = null
     }
-    const input: unknown = typeof args === 'string' ? JSON.parse(args) : args
+    if (!input || typeof input !== 'object') {
+      return fail('Failed to parse tool input arguments.', 'DataError')
+    }
+
     const controller = new AbortController()
-    options.signal?.addEventListener('abort', () => controller.abort(options.signal?.reason))
-    const result = await registered.execute(input, { signal: controller.signal })
-    return JSON.stringify(result)
+    let onAbort = (): void => {}
+    // Cancelling settles the call at once with the caller's reason. The tool's
+    // own signal aborts without one, so execute sees a plain AbortError as it
+    // does in Chromium, and whatever the tool does next is ignored.
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      if (!signal) return
+      onAbort = () => {
+        reject(signal.reason)
+        controller.abort()
+        fire('toolcancel', tool.name)
+      }
+      signal.addEventListener('abort', onAbort)
+    })
+    // An async wrapper, so execute runs now and a synchronous throw rejects.
+    const run = (async () => registered.execute(input, { signal: controller.signal }))()
+    // After invoking execute, which is the order Chromium uses.
+    fire('toolactivated', tool.name)
+    // Only the exception name reaches the caller, as in the spec; the message
+    // is Chromium's. A finished call stops listening to a long-lived signal.
+    const result = run
+      .then(value => JSON.stringify(value))
+      .catch(() => {
+        throw new DOMException('Tool execution failed.', 'OperationError')
+      })
+      .finally(() => signal?.removeEventListener('abort', onAbort))
+    return Promise.race([cancelled, result])
   }
 
   context.names = () => [...tools.keys()].sort()
@@ -137,7 +184,15 @@ export function installModelContextStub(host: StubHost = globalThis as StubHost)
     const registered = tools.get(name)
     if (!registered) throw new Error(`no tool "${name}" is registered`)
     const signal = options.signal ?? new AbortController().signal
-    return (await registered.execute(args, { signal })) as WebMCPToolResponse
+    const cancelled = (): void => fire('toolcancel', name)
+    signal.addEventListener('abort', cancelled, { once: true })
+    try {
+      const pending = registered.execute(args, { signal })
+      fire('toolactivated', name)
+      return (await pending) as WebMCPToolResponse
+    } finally {
+      signal.removeEventListener('abort', cancelled)
+    }
   }
 
   if (doc) {

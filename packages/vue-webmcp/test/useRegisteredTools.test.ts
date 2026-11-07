@@ -185,9 +185,9 @@ describe('execution', () => {
     const { result } = mountComposable(() => useRegisteredTools())
     await settle()
 
-    context.executeTool.mockRejectedValueOnce(new DOMException('boom', 'UnknownError'))
+    context.executeTool.mockRejectedValueOnce(new DOMException('boom', 'OperationError'))
     await expect(result.execute(result.tools.value[0]!)).rejects.toMatchObject({
-      name: 'UnknownError',
+      name: 'OperationError',
     })
     expect(context.executeTool).toHaveBeenCalledTimes(1)
   })
