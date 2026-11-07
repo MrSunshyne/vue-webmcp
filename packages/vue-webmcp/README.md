@@ -332,7 +332,7 @@ app.provide(WEBMCP_CONFIG, {
 A hook that throws is reported with a warning and never changes the tool's result.
 ## Testing tools
 
-`vue-webmcp/testing` ships the test double this package's own suite runs on: a stub `document.modelContext` that records registrations, respects the `AbortSignal` that unregisters, implements `getTools()` / `executeTool()` / `toolchange` as the spec describes, and adds `names()` and `call()` for assertions. It moves with the spec (the `{ signal }` argument Chrome 153 added, for instance), so projects need not keep their own copy.
+`vue-webmcp/testing` ships the test double this package's own suite runs on: a stub `document.modelContext` that records registrations, respects the `AbortSignal` that unregisters, implements `getTools()` / `executeTool()` / `toolchange` / `toolactivated` / `toolcancel` as the spec describes, and adds `names()` and `call()` for assertions. It moves with the spec (the `{ signal }` argument Chrome 153 added, for instance), so projects need not keep their own copy. Like the browser, its `executeTool()` rejects a cancelled call at once with the abort reason, reports a failing tool as an `OperationError` and an input that is not an object as a `DataError`.
 
 In vitest with jsdom or happy-dom, install a fresh stub per test:
 
@@ -355,7 +355,7 @@ test('the editor offers save_note', async () => {
 })
 ```
 
-`call` returns what the tool's `execute` produced, which through `useWebMCPTool` is the normalized `{ content, isError }` an agent would see.
+`call` returns what the tool's `execute` produced, which through `useWebMCPTool` is the normalized `{ content, isError }` an agent would see. It fires `toolactivated` too, and `toolcancel` when its `signal` aborts, so code that follows those events can be tested the same way.
 
 In Playwright, the same stub as a string, installed before any page script runs. `document.modelContext` is typed as the browser API, so cast it to reach the helpers:
 
