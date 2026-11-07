@@ -21,6 +21,12 @@ export interface WebMCPToolResultEvent {
    * that reason; in `'error'` budget mode also the oversized-result failure.
    */
   error?: unknown
+  /**
+   * The caller cancelled the call before it settled. The browser has already
+   * settled it with the abort reason and discards `response`; a failure
+   * after the abort is rethrown to the browser and does not run `onError`.
+   */
+  cancelled?: true
   /** Present only with `includeArgs: true`. */
   args?: unknown
 }

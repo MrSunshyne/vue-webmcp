@@ -53,6 +53,44 @@ describe('hooks', () => {
     expect(onToolResult.mock.calls[0]![0].args).toEqual({ text: 'milk' })
   })
 
+  it('flags a cancelled call, failed or not, with cancelled: true', async () => {
+    const { tools } = installFakeModelContext()
+    const onToolResult = vi.fn()
+    const controller = new AbortController()
+    const failure = new DOMException('stopped', 'AbortError')
+    mountComposable(
+      () =>
+        useWebMCPTool({
+          ...baseOptions,
+          execute: ({ fail }: { fail: boolean }) => {
+            controller.abort()
+            if (fail) throw failure
+            return 'finished anyway'
+          },
+        }),
+      { config: { onToolResult } },
+    )
+    const call = (args: object) =>
+      tools.get('add-todo')!.execute(args, { signal: controller.signal })
+
+    await expect(call({ fail: true })).rejects.toBe(failure)
+    await call({ fail: false })
+
+    expect(onToolResult.mock.calls[0]![0]).toMatchObject({ ok: false, cancelled: true, error: failure })
+    expect(onToolResult.mock.calls[1]![0]).toMatchObject({ ok: true, cancelled: true })
+  })
+
+  it('leaves cancelled off a call whose signal never aborted', async () => {
+    const { tools } = installFakeModelContext()
+    const onToolResult = vi.fn()
+    mountComposable(() => useWebMCPTool({ ...baseOptions, execute: () => 'done' }), {
+      config: { onToolResult },
+    })
+
+    await tools.get('add-todo')!.execute({}, { signal: new AbortController().signal })
+    expect(onToolResult.mock.calls[0]![0]).not.toHaveProperty('cancelled')
+  })
+
   it('reports a thrown error as ok: false with the error, after onError', async () => {
     const { tools } = installFakeModelContext()
     const order: string[] = []

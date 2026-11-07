@@ -557,9 +557,10 @@ describe('execute options and signal', () => {
     },
   )
 
-  it('lets execute observe an abort during execution', async () => {
+  it('rethrows what execute throws after the caller aborts, without onError', async () => {
     const { tools } = installFakeModelContext()
     const controller = new AbortController()
+    const onError = vi.fn()
     mountComposable(() =>
       useWebMCPTool({
         ...baseOptions,
@@ -567,21 +568,18 @@ describe('execute options and signal', () => {
           new Promise<string>((_resolve, reject) => {
             signal.addEventListener('abort', () => reject(new Error('aborted during execution')))
           }),
+        onError,
       }),
     )
 
     const pending = invoke(tools, 'add-todo', {}, { signal: controller.signal })
     controller.abort()
 
-    expect(await pending).toEqual({
-      content: [{ type: 'text', text: 'aborted during execution' }],
-      isError: true,
-    })
+    await expect(pending).rejects.toThrow('aborted during execution')
+    expect(onError).not.toHaveBeenCalled()
   })
 
-  // jsdom's DOMException is not an instanceof Error, so this also pins the
-  // Error-like handling in toErrorResponse: without it the text would be "{}".
-  it('reports an AbortError from signal.throwIfAborted() through onError', async () => {
+  it('rethrows an AbortError from signal.throwIfAborted(), without onError', async () => {
     const { tools } = installFakeModelContext()
     const onError = vi.fn()
     const controller = new AbortController()
@@ -597,12 +595,52 @@ describe('execute options and signal', () => {
       }),
     )
 
-    const response = await invoke(tools, 'add-todo', {}, { signal: controller.signal })
+    await expect(
+      invoke(tools, 'add-todo', {}, { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(onError).not.toHaveBeenCalled()
+  })
 
-    expect(response.isError).toBe(true)
-    expect(response.content[0]?.text).toMatch(/abort/i)
+  // jsdom's DOMException is not an instanceof Error, so the DOMException case
+  // also pins the Error-like handling in toErrorResponse: without it the text
+  // would be "{}".
+  it.each([
+    ['an Error named AbortError', () => Object.assign(new Error('nope'), { name: 'AbortError' })],
+    ['an AbortError DOMException', () => new DOMException('nope', 'AbortError')],
+  ])('reports %s as a tool error while the signal is live', async (_label, makeError) => {
+    const { tools } = installFakeModelContext()
+    const onError = vi.fn()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: () => {
+          throw makeError()
+        },
+        onError,
+      }),
+    )
+
+    const response = await invoke(tools, 'add-todo', {}, { signal: new AbortController().signal })
+
+    expect(response).toEqual({ content: [{ type: 'text', text: 'nope' }], isError: true })
     expect(onError).toHaveBeenCalledTimes(1)
-    expect((onError.mock.calls[0]![0] as { name: string }).name).toBe('AbortError')
+  })
+
+  it('returns a result that arrives after the abort, which the browser discards', async () => {
+    const { tools } = installFakeModelContext()
+    const controller = new AbortController()
+    mountComposable(() =>
+      useWebMCPTool({
+        ...baseOptions,
+        execute: async () => {
+          controller.abort()
+          return 'finished anyway'
+        },
+      }),
+    )
+
+    const response = await invoke(tools, 'add-todo', {}, { signal: controller.signal })
+    expect(response).toEqual({ content: [{ type: 'text', text: 'finished anyway' }] })
   })
 })
 

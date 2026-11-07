@@ -225,6 +225,8 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
     emitHook(config?.onToolCall, { name, ...argsPayload })
     // Timed from here, so a slow hook does not count against the tool.
     const started = now()
+    const cancelledPayload = () =>
+      executeOptions.signal.aborted ? { cancelled: true as const } : {}
     try {
       const result = await options.execute(args as Args, executeOptions)
       const shaped = options.formatOutput ? options.formatOutput(result, args as Args) : result
@@ -238,11 +240,17 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
         ok: !response.isError,
         ms: now() - started,
         response,
+        ...cancelledPayload(),
         ...argsPayload,
       })
       return response
     } catch (err) {
-      options.onError?.(err)
+      // Once the caller has cancelled, a throw is how execute stops, not a
+      // tool failure: the browser has already settled the call with the
+      // abort reason and drops whatever comes back. Rethrow it as is,
+      // without onError, as use-webmcp-tool does.
+      const cancelled = executeOptions.signal.aborted
+      if (!cancelled) options.onError?.(err)
       const response = toErrorResponse(err)
       emitHook(config?.onToolResult, {
         name,
@@ -250,8 +258,10 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
         ms: now() - started,
         response,
         error: err,
+        ...cancelledPayload(),
         ...argsPayload,
       })
+      if (cancelled) throw err
       return response
     }
   }
