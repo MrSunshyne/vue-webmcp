@@ -84,7 +84,8 @@ call time, so there is no stale-closure problem and no need to mirror refs.
 
 `execute` receives `(args, { signal })`. Pass it to `fetch` and check it in long work. On
 browsers that call `execute` without options the composable supplies a signal that never
-aborts, so `signal` is always defined.
+aborts, so `signal` is always defined. Once it has aborted, whatever `execute` throws is
+rethrown to the browser without `onError`: a cancelled call is not a tool error.
 
 ```ts
 async execute({ query }, { signal }) {

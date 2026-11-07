@@ -213,7 +213,7 @@ async execute({ query }, { signal }) {
 }
 ```
 
-Inside the composable an abort is a failure like any other: `onError` runs and `execute` resolves to an `isError` result. The caller that cancelled has already received the abort reason and does not see that result. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined — a deliberate divergence from `use-webmcp-tool`, which forwards the browser's arguments verbatim and leaves `options` undefined there.
+Once `signal` has aborted, a throw or rejection from `execute` is rethrown as is, without `onError`: a cancelled call is not a tool error, so a page that reports tool errors from `onError` does not report it. The caller that cancelled has already received the abort reason, and the browser drops whatever comes back, though Chrome still logs the rethrown error to the console as a failed execution; a tool that returns early on `signal.aborted` instead of throwing avoids that. The [hooks](#configuration-hooks-and-budgets) still see the call, with `cancelled: true`. This matches `use-webmcp-tool`. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined — a deliberate divergence from `use-webmcp-tool`, which forwards the browser's arguments verbatim and leaves `options` undefined there.
 
 ### Result normalization
 
@@ -225,6 +225,7 @@ Whatever `execute` returns is normalized to an MCP tool result, identically to `
 - anything else (object/array/number) → JSON-serialized into a text block
 - a **thrown value** — Error or not (`throw "not signed in"`, `throw { code: 403 }`) → `{ content: [...], isError: true }`, after `onError`. Errors and objects with a string `message` (an error thrown in another realm, a structured-cloned error) supply that message; strings pass through; anything else is JSON-serialized. A failure must never read as success to the agent.
 - a **returned `Error`** → treated exactly like a throw
+- a throw or rejection **after `signal` aborts** → rethrown as is, without `onError` (see [Cancellation](#cancellation))
 
 ## Consuming tools: `useRegisteredTools()`
 
@@ -325,7 +326,7 @@ app.provide(WEBMCP_CONFIG, {
 | option | meaning |
 | --- | --- |
 | `onToolCall({ name, args? })` | Runs before `execute`. |
-| `onToolResult({ name, ok, ms, response, error?, args? })` | Runs after normalization, for success and failure alike: `ok` is false when `execute` threw, returned an `Error`, or returned an `isError` result; `error` holds what was thrown; `ms` is timed from after `onToolCall`. Runs after the tool's own `onError`. |
+| `onToolResult({ name, ok, ms, response, error?, cancelled?, args? })` | Runs after normalization, for success and failure alike: `ok` is false when `execute` threw, returned an `Error`, or returned an `isError` result; `error` holds what was thrown; `cancelled` is `true` when the caller aborted before the call settled, in which case the browser discards `response`; `ms` is timed from after `onToolCall`. Runs after the tool's own `onError`. |
 | `includeArgs` | Put the call arguments in both payloads, as the same object `execute` receives (do not mutate it). Off by default: arguments often carry personal data that should not reach an analytics tool. |
 | `budgets` | What happens when a name, description, parameter or result is over [Chrome's character budgets](#security-notes): `'warn'` logs (the development default); `'error'` fails setup for an over-budget initial definition (a thrown error in a dev or test build; the server never validates), records a later over-budget change in `error` without registering, and turns an oversized result into an `isError` response, so a test run fails on any of them; `false` skips the checks (the production default). An explicit `'warn'` is honoured in production too, so leave it unset outside test runs. |
 
