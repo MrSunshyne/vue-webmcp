@@ -213,7 +213,7 @@ async execute({ query }, { signal }) {
 }
 ```
 
-Once `signal` has aborted, a throw or rejection from `execute` is rethrown as is, without `onError`: a cancelled call is not a tool error, so it never shows up as one in the page. The caller that cancelled has already received the abort reason, and the browser drops whatever comes back. The [hooks](#configuration-hooks-and-budgets) still see the call, with `cancelled: true`. This matches `use-webmcp-tool`. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined — a deliberate divergence from `use-webmcp-tool`, which forwards the browser's arguments verbatim and leaves `options` undefined there.
+Once `signal` has aborted, a throw or rejection from `execute` is rethrown as is, without `onError`: a cancelled call is not a tool error, so a page that reports tool errors from `onError` does not report it. The caller that cancelled has already received the abort reason, and the browser drops whatever comes back, though Chrome still logs the rethrown error to the console as a failed execution; a tool that returns early on `signal.aborted` instead of throwing avoids that. The [hooks](#configuration-hooks-and-budgets) still see the call, with `cancelled: true`. This matches `use-webmcp-tool`. On browsers that call `execute` without options, the composable supplies a signal that never aborts, so `signal` is always defined — a deliberate divergence from `use-webmcp-tool`, which forwards the browser's arguments verbatim and leaves `options` undefined there.
 
 ### Result normalization
 
