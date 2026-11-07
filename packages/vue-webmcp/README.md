@@ -178,6 +178,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
   title,          // MaybeRefOrGetter<string> — human-readable label for user-agent UI (optional)
   description,    // MaybeRefOrGetter<string> — natural-language description for the agent (required)
   inputSchema,    // MaybeRefOrGetter<object> — JSON Schema for the args (optional)
+  outputSchema,   // MaybeRefOrGetter<object> — JSON Schema for the result (optional, Chrome 159+)
   annotations,    // MaybeRefOrGetter<{ readOnlyHint?, untrustedContentHint?, consequentialHint?, debugging? }> (optional)
   exposedTo,      // MaybeRefOrGetter<string[]> — secure origins that may also call the tool (optional)
   execute,        // (args, { signal }) => result | Promise<result> (required)
@@ -195,7 +196,7 @@ const { isSupported, isRegistered, error } = useWebMCPTool({
 
 ### Reactivity rules
 
-- `name`, `title`, `description`, `inputSchema`, `annotations`, `exposedTo`, and `enabled` accept plain values, refs, or getters. Any change to them re-registers the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
+- `name`, `title`, `description`, `inputSchema`, `outputSchema`, `annotations`, `exposedTo`, and `enabled` accept plain values, refs, or getters. Any change to them re-registers the tool; comparison is **by content**, so a rebuilt-but-identical schema object never churns.
 - `title` is a label the user agent may use when it refers to the tool in its own UI; agents work from `name` and `description`. Omit it and the user agent is free to display a value of its own. The spec recommends localizing it to the user's language.
 - `execute` is *not* reactive input and never triggers re-registration. It reads reactive state live at call time — `setup()` runs once in Vue, so there is no stale-closure problem and no ref-mirroring dance.
 - A literal `inputSchema` types `execute`'s arguments by inference — `{ type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }` gives `execute` `{ text: string }`, with `enum`, `const` and `items` handled too (the spec org's [`webmcp-types`](https://github.com/webmachinelearning/webmcp-types) does the reading). Hoist a schema into a variable with `as const` to keep the inference (without it the widened types infer only the property names). A ref or getter schema, or an explicit `useWebMCPTool<Args>()` type argument, uses the manually-typed signature instead, where args default to `Record<string, unknown>`.
@@ -226,6 +227,24 @@ Whatever `execute` returns is normalized to an MCP tool result, identically to `
 - a **thrown value** — Error or not (`throw "not signed in"`, `throw { code: 403 }`) → `{ content: [...], isError: true }`, after `onError`. Errors and objects with a string `message` (an error thrown in another realm, a structured-cloned error) supply that message; strings pass through; anything else is JSON-serialized. A failure must never read as success to the agent.
 - a **returned `Error`** → treated exactly like a throw
 - a throw or rejection **after `signal` aborts** → rethrown as is, without `onError` (see [Cancellation](#cancellation))
+
+### Output schema
+
+`outputSchema` describes the result for agents, which may reject one that does not validate (spec [#254](https://github.com/webmachinelearning/webmcp/pull/254), Chrome 159). It is passed to the browser as is and compared by content like `inputSchema`. Results are still normalized, the same as `use-webmcp-tool`, so a returned object reaches the agent as JSON text. The spec does not define a structured result field; to give an MCP-aware agent the structured value as well, return MCP's `structuredContent` next to the text yourself, which passes through untouched:
+
+```ts
+useWebMCPTool({
+  name: 'save-note',
+  description: 'Save a note and return its id',
+  inputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] },
+  outputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+  async execute({ title }) {
+    const note = await notes.save(title)
+    const result = { id: note.id }
+    return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result }
+  },
+})
+```
 
 ## Consuming tools: `useRegisteredTools()`
 
@@ -262,7 +281,7 @@ const { isSupported, tools, error, refresh, execute } = useRegisteredTools({
 | return | type | meaning |
 | --- | --- | --- |
 | `isSupported` | `Readonly<Ref<boolean>>` | `getTools()` and `executeTool()` exist here. A registration-only polyfill leaves this `false`. |
-| `tools` | `Readonly<ShallowRef<readonly RegisteredTool[]>>` | The spec's `RegisteredTool` dictionaries (`name`, `title`, `description`, `inputSchema`, `annotations`, `origin`, `window`), sorted by name, refreshed on `toolchange`. |
+| `tools` | `Readonly<ShallowRef<readonly RegisteredTool[]>>` | The spec's `RegisteredTool` dictionaries (`name`, `title`, `description`, `inputSchema`, `outputSchema`, `annotations`, `origin`, `window`), sorted by name, refreshed on `toolchange`. |
 | `error` | `Readonly<Ref<Error \| null>>` | Failure of the last `getTools()` call. |
 | `refresh` | `() => Promise<void>` | Query again by hand. A failure lands in `error`. |
 | `execute` | `(tool, args?, { signal }?) => Promise<unknown>` | Run a tool. Resolves with its result parsed from the JSON the browser returns; pass a `signal` to cancel. Rejects with the browser's `DOMException` when the tool or the browser fails, and with a `NotSupportedError` when the API is absent. |
