@@ -3,10 +3,10 @@
 Nuxt module for [WebMCP](https://github.com/webmachinelearning/webmcp). Wraps [`vue-webmcp`](../vue-webmcp) with the Nuxt-specific plumbing:
 
 - **Auto-imports** `useWebMCPTool`, `useWebMCPTools`, `defineWebMCPTool`, `useWebMCPForm` and `useRegisteredTools` in components, composables, and stores.
-- **Origin-trial token injection** — WebMCP is in origin trial in Chrome (149→156) and Edge (from 150); without a token on your origin (or the local `chrome://flags/#enable-webmcp-testing` flag) the API simply doesn't exist. The module injects your tokens as `<meta http-equiv="origin-trial">`, from the build config or from runtime config at deploy time.
+- **Origin-trial token injection** — WebMCP is in origin trial in Chrome (from 149 through 156, an extension to 162 requested) and Edge (from 150); without a token on your origin (or the local `chrome://flags/#enable-webmcp-testing` flag) the API simply doesn't exist. The module injects your tokens as `<meta http-equiv="origin-trial">`, from the build config or from runtime config at deploy time.
 - **SSR-safe by construction** — the composable is inert during server rendering and registers tools after mount on the client. No `import.meta.client` guards needed in your code.
 
-> Same experimental-status caveats as [`vue-webmcp`](../vue-webmcp#readme) (2026-09-10): origin-trial API in Chrome and Edge, WebKit opposed, Mozilla neutral. ChatGPT Desktop's built-in browser calls WebMCP tools ([Site tools](https://learn.chatgpt.com/docs/webmcp)). Everything degrades to a no-op where the API is absent.
+> Same experimental-status caveats as [`vue-webmcp`](../vue-webmcp#readme) (2026-11-07): origin-trial API in Chrome and Edge, no Intent to Ship yet, WebKit opposed, Mozilla neutral. ChatGPT Desktop's built-in browser calls WebMCP tools ([Site tools](https://learn.chatgpt.com/docs/webmcp)). Everything degrades to a no-op where the API is absent.
 
 ## Install
 
