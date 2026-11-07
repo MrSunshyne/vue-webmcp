@@ -98,12 +98,38 @@ describe('installModelContextStub', () => {
 
     const controller = new AbortController()
     const call = stub.executeTool({ name: 'slow' }, {}, { signal: controller.signal })
-    controller.abort(new DOMException('user moved on', 'AbortError'))
+    controller.abort(new DOMException('took too long', 'TimeoutError'))
 
-    await expect(call).rejects.toMatchObject({ name: 'AbortError', message: 'user moved on' })
+    // The caller gets its own reason; the tool sees a plain AbortError.
+    await expect(call).rejects.toMatchObject({ name: 'TimeoutError', message: 'took too long' })
     expect(toolSignal.aborted).toBe(true)
+    expect((toolSignal.reason as DOMException).name).toBe('AbortError')
     expect(cancelled).toHaveBeenCalledTimes(1)
     expect(cancelled).toHaveReturnedWith('slow')
+  })
+
+  it('stops listening to a long-lived signal once the call finishes', async () => {
+    const stub = installModelContextStub()
+    await stub.registerTool({ name: 'echo', description: 'Echo', execute: () => 'ok' })
+    const cancelled = vi.fn()
+    stub.addEventListener('toolcancel', cancelled)
+    const controller = new AbortController()
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+
+    await stub.executeTool({ name: 'echo' }, {}, { signal: controller.signal })
+    await stub.executeTool({ name: 'echo' }, {}, { signal: controller.signal })
+    controller.abort()
+
+    expect(remove).toHaveBeenCalledTimes(2)
+    expect(cancelled).not.toHaveBeenCalled()
+  })
+
+  it('checks an aborted signal before looking the tool up', async () => {
+    const stub = installModelContextStub()
+    const reason = new DOMException('gone', 'AbortError')
+    await expect(
+      stub.executeTool({ name: 'missing' }, {}, { signal: AbortSignal.abort(reason) }),
+    ).rejects.toBe(reason)
   })
 
   it('fires toolactivated after invoking execute, for executeTool and call', async () => {
@@ -143,10 +169,9 @@ describe('installModelContextStub', () => {
       },
     })
 
-    await expect(stub.executeTool({ name: 'broken' })).rejects.toMatchObject({
-      name: 'OperationError',
-      message: expect.stringContaining('database is down'),
-    })
+    // Only the name crosses, as in Chrome: the tool's own message stays behind.
+    const failure: unknown = await stub.executeTool({ name: 'broken' }).catch(err => err)
+    expect(failure).toMatchObject({ name: 'OperationError', message: 'Tool execution failed.' })
     await expect(stub.executeTool({ name: 'cyclic' })).rejects.toMatchObject({ name: 'OperationError' })
     await expect(stub.executeTool({ name: 'broken' }, '"text"')).rejects.toMatchObject({
       name: 'DataError',

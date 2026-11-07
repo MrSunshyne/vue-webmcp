@@ -44,8 +44,8 @@ export interface ModelContextStub extends EventTarget {
    * Accepts an object (spec) or a JSON string (Chrome before 155); resolves
    * with the result as JSON text. As in the spec, aborting `options.signal`
    * rejects at once with the abort reason and aborts the tool's own signal,
-   * a failing tool rejects with an `OperationError`, and an input that is
-   * not an object with a `DataError`.
+   * a failing tool rejects with an `OperationError` that does not carry the
+   * tool's error, and an input that is not an object with a `DataError`.
    */
   executeTool(
     tool: { name: string },
@@ -131,50 +131,50 @@ export function installModelContextStub(host: StubHost = globalThis as StubHost)
       }))
 
   context.executeTool = (tool, args = {}, options = {}) => {
-    const registered = tools.get(tool.name)
     const { signal } = options
     const fail = (message: string, name: string): Promise<never> =>
       Promise.reject(new DOMException(message, name))
-    if (!registered) return fail(`no tool "${tool.name}"`, 'NotFoundError')
-    // A call made with an already-aborted signal never runs the tool.
+    // The signal comes first, as in the spec and Chromium: an already-aborted
+    // call rejects with its reason whether or not the tool exists.
     if (signal?.aborted) return Promise.reject(signal.reason)
+    const registered = tools.get(tool.name)
+    if (!registered) return fail(`no tool "${tool.name}"`, 'NotFoundError')
     let input: unknown = args
     try {
       if (typeof args === 'string') input = JSON.parse(args)
     } catch {
       input = null
     }
-    if (!input || typeof input !== 'object') return fail('the tool input is not an object', 'DataError')
+    if (!input || typeof input !== 'object') {
+      return fail('Failed to parse tool input arguments.', 'DataError')
+    }
 
     const controller = new AbortController()
-    let done = false
-    // Cancelling settles the call at once with the abort reason; whatever the
-    // tool does after that is ignored, as the spec says.
+    let onAbort = (): void => {}
+    // Cancelling settles the call at once with the caller's reason. The tool's
+    // own signal aborts without one, so execute sees a plain AbortError as it
+    // does in Chromium, and whatever the tool does next is ignored.
     const cancelled = new Promise<never>((_resolve, reject) => {
-      signal?.addEventListener(
-        'abort',
-        () => {
-          if (done) return
-          reject(signal.reason)
-          controller.abort(signal.reason)
-          fire('toolcancel', tool.name)
-        },
-        { once: true },
-      )
+      if (!signal) return
+      onAbort = () => {
+        reject(signal.reason)
+        controller.abort()
+        fire('toolcancel', tool.name)
+      }
+      signal.addEventListener('abort', onAbort)
     })
     // An async wrapper, so execute runs now and a synchronous throw rejects.
     const run = (async () => registered.execute(input, { signal: controller.signal }))()
     // After invoking execute, which is the order Chromium uses.
     fire('toolactivated', tool.name)
+    // Only the exception name reaches the caller, as in the spec; the message
+    // is Chromium's. A finished call stops listening to a long-lived signal.
     const result = run
       .then(value => JSON.stringify(value))
-      .catch((err: unknown) => {
-        const reason = err instanceof Error ? err.message : String(err)
-        throw new DOMException(`tool "${tool.name}" failed: ${reason}`, 'OperationError')
+      .catch(() => {
+        throw new DOMException('Tool execution failed.', 'OperationError')
       })
-      .finally(() => {
-        done = true
-      })
+      .finally(() => signal?.removeEventListener('abort', onAbort))
     return Promise.race([cancelled, result])
   }
 
