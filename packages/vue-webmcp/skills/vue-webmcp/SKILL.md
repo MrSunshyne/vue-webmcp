@@ -199,6 +199,24 @@ Chrome submits a `toolautosubmit` form before it activates the tool and dispatch
 `toolcancel`, so `isAgentActive` stays `false` for the whole call. Use `isSubmitting` to
 show that one.
 
+### MEDIUM Listening for toolactivated on window
+
+Chrome 156 moved `toolactivated` / `toolcancel` from `window` to `document.modelContext`
+and removed the `WebMCPEvent` interface. For a form, read `isAgentActive` from
+`useWebMCPForm()`, which listens on both.
+
+Wrong:
+
+```ts
+window.addEventListener('toolactivated', (e: WebMCPEvent) => { active.value = true })
+```
+
+Right:
+
+```ts
+const { attrs, isAgentActive } = useWebMCPForm({ name, description, execute })
+```
+
 ### LOW Hand-building the MCP result shape
 
 Wrong:

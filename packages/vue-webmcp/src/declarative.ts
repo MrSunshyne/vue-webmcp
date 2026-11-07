@@ -1,13 +1,14 @@
 /**
  * The declarative half of WebMCP: a `<form toolname>` the browser turns into
  * a tool. Chrome adds `agentInvoked` and `respondWith()` to `SubmitEvent`,
- * fires `toolactivated` / `toolcancel` on `window` as `WebMCPEvent`s carrying
- * a `toolName`, and styles the form with `:tool-form-active` while an agent
- * fills it in. https://developer.chrome.com/docs/ai/webmcp/declarative-api
+ * fires `toolactivated` / `toolcancel` carrying a `toolName`, and styles the
+ * form with `:tool-form-active` while an agent fills it in.
+ * https://developer.chrome.com/docs/ai/webmcp/declarative-api
  *
- * None of that is in `webmcp-types` yet. The declarations below use the
- * shapes Chromium implements (`submit_event.idl`, `web_mcp_event.idl`), so
- * they merge cleanly once lib.dom or webmcp-types declare the same.
+ * The events are typed by webmcp-types (`ToolActivatedEvent`,
+ * `ToolCancelEvent`). The `SubmitEvent` additions are not yet; the
+ * declarations below use the shapes Chromium implements (`submit_event.idl`),
+ * so they merge cleanly once lib.dom or webmcp-types declare the same.
  */
 import {
   computed,
@@ -23,8 +24,9 @@ import {
 import type { ComputedRef, MaybeRefOrGetter, Ref } from 'vue'
 import { injectWebMCPConfig } from './config'
 import type { WebMCPConfig } from './config'
-import { emitHook, now, toError } from './context'
+import { emitHook, now, resolveModelContext, toError } from './context'
 import { toErrorResponse, toToolResponse } from './normalize'
+import type { ModelContext } from './types'
 
 declare global {
   interface SubmitEvent {
@@ -37,16 +39,6 @@ declare global {
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Chromium's IDL is Promise<any>
     respondWith(agentResponse: Promise<any>): void
-  }
-
-  /** `toolactivated` / `toolcancel` on `window`; neither bubbles nor cancels. */
-  interface WebMCPEvent extends Event {
-    readonly toolName: string
-  }
-
-  interface WindowEventMap {
-    toolactivated: WebMCPEvent
-    toolcancel: WebMCPEvent
   }
 }
 
@@ -202,12 +194,16 @@ export function useWebMCPForm<Fields extends FormFields = FormFields, Result = u
     onSubmit,
   }))
 
-  // Activation events fire on window and carry the tool name. Inside a
-  // component, wait for mount as the other composables do; elsewhere
-  // (a store, an effectScope) listen now.
+  // Activation events carry the tool name. Chrome 156+ fires them at
+  // `document.modelContext` (the spec's target, for every tool); 149-155
+  // fired them at `window`. Both are listened to: no Chrome build fires at
+  // both, the move and the removal of the window events shipped together in
+  // 156.0.8076.0. Inside a component, wait for mount as the other composables
+  // do; elsewhere (a store, an effectScope) listen now.
   if (typeof window !== 'undefined') {
-    const matches = (event: WebMCPEvent): boolean => event.toolName === toValue(options.name)
-    const onActivated = (event: WebMCPEvent): void => {
+    const matches = (event: Event): boolean =>
+      (event as ToolActivatedEvent).toolName === toValue(options.name)
+    const onActivated = (event: Event): void => {
       if (!matches(event)) return
       // The tail of an autosubmit call this form has already answered.
       if (activationOwed) {
@@ -216,14 +212,24 @@ export function useWebMCPForm<Fields extends FormFields = FormFields, Result = u
       }
       isAgentActive.value = true
     }
-    const onCancel = (event: WebMCPEvent): void => {
+    const onCancel = (event: Event): void => {
       if (!matches(event)) return
       activationOwed = false
       isAgentActive.value = false
     }
+    const handlers = [
+      ['toolactivated', onActivated],
+      ['toolcancel', onCancel],
+    ] as const
+    // Declarative forms come with the browser's own modelContext, so one
+    // look at listen time finds it; there is no late injection to wait for.
+    let context: ModelContext | undefined
     const listen = (): void => {
-      window.addEventListener('toolactivated', onActivated)
-      window.addEventListener('toolcancel', onCancel)
+      context = resolveModelContext()?.context
+      for (const [type, listener] of handlers) {
+        window.addEventListener(type, listener)
+        context?.addEventListener?.(type, listener)
+      }
     }
     if (getCurrentInstance()) {
       onMounted(listen)
@@ -232,8 +238,10 @@ export function useWebMCPForm<Fields extends FormFields = FormFields, Result = u
     }
     if (getCurrentScope()) {
       onScopeDispose(() => {
-        window.removeEventListener('toolactivated', onActivated)
-        window.removeEventListener('toolcancel', onCancel)
+        for (const [type, listener] of handlers) {
+          window.removeEventListener(type, listener)
+          context?.removeEventListener?.(type, listener)
+        }
       })
       // A renamed form is a different tool to the browser.
       watch(

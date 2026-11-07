@@ -57,6 +57,9 @@ export type GetToolsOptions = WebMCP.ModelContextGetToolOptions
 /** Options for `executeTool()`. */
 export type ExecuteToolOptions = WebMCP.ModelContextExecuteToolOptions
 
+/** The events a `ModelContext` fires. */
+export type ModelContextEventType = 'toolchange' | 'toolactivated' | 'toolcancel'
+
 /**
  * The part of the spec's `ModelContext` interface this package calls. The
  * consumer-side members are optional because a registerTool-only build or
@@ -79,8 +82,8 @@ export interface ModelContext {
     args?: object | string,
     options?: ExecuteToolOptions,
   ): Promise<unknown>
-  addEventListener?: (type: 'toolchange', listener: (event: Event) => void) => void
-  removeEventListener?: (type: 'toolchange', listener: (event: Event) => void) => void
+  addEventListener?: (type: ModelContextEventType, listener: (event: Event) => void) => void
+  removeEventListener?: (type: ModelContextEventType, listener: (event: Event) => void) => void
 }
 
 declare global {

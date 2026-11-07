@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, defineComponent, effectScope, h, nextTick, ref } from 'vue'
 import { WEBMCP_CONFIG, useWebMCPForm } from '../src'
 import type { FormFields, UseWebMCPFormOptions, UseWebMCPFormReturn, WebMCPConfig } from '../src'
+import { cleanupModelContext, installFakeModelContext } from './harness'
 
 // A form bound with `v-bind="attrs"`, the way the README shows it.
 function mountForm<Fields extends FormFields = FormFields, Result = unknown>(
@@ -58,6 +59,14 @@ function activation(type: 'toolactivated' | 'toolcancel', toolName: string): Eve
   return Object.assign(new Event(type), { toolName })
 }
 
+// Where the activation events arrive: `document.modelContext` from Chrome 156,
+// `window` before it. The activation suite runs once per target.
+let eventTarget: () => EventTarget = () => window
+
+function fire(type: 'toolactivated' | 'toolcancel', toolName: string): void {
+  eventTarget().dispatchEvent(activation(type, toolName))
+}
+
 // The autosubmit form the ordering tests share, mounted and listening.
 async function mountAutosubmitForm(execute: UseWebMCPFormOptions['execute']) {
   const mounted = mountForm({ name: 'lookup', description: 'Look up', autosubmit: true, execute })
@@ -70,7 +79,7 @@ async function mountAutosubmitForm(execute: UseWebMCPFormOptions['execute']) {
 async function autosubmit(form: HTMLFormElement): Promise<void> {
   form.dispatchEvent(agentSubmit().event)
   await settle()
-  window.dispatchEvent(activation('toolactivated', 'lookup'))
+  fire('toolactivated', 'lookup')
   await settle()
 }
 
@@ -81,6 +90,7 @@ async function settle(): Promise<void> {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  cleanupModelContext()
 })
 
 describe('attributes', () => {
@@ -238,36 +248,48 @@ describe('submission', () => {
   })
 })
 
-describe('activation', () => {
+describe.each([
+  { at: 'document.modelContext (Chrome 156+)', modelContext: true },
+  { at: 'window (Chrome 149-155)', modelContext: false },
+])('activation events at $at', ({ modelContext }) => {
+  beforeEach(() => {
+    if (modelContext) {
+      const { context } = installFakeModelContext()
+      eventTarget = () => context
+    } else {
+      eventTarget = () => window
+    }
+  })
+
   it('follows toolactivated and toolcancel for its own tool name', async () => {
     const name = ref('add_note')
     const { result, form, unmount } = mountForm({ name, description: 'Add', execute: () => 'ok' })
     await nextTick()
 
-    window.dispatchEvent(activation('toolactivated', 'other_tool'))
+    fire('toolactivated', 'other_tool')
     expect(result.isAgentActive.value).toBe(false)
 
-    window.dispatchEvent(activation('toolactivated', 'add_note'))
+    fire('toolactivated', 'add_note')
     expect(result.isAgentActive.value).toBe(true)
 
-    window.dispatchEvent(activation('toolcancel', 'add_note'))
+    fire('toolcancel', 'add_note')
     expect(result.isAgentActive.value).toBe(false)
 
     // Submitting ends the activation too.
-    window.dispatchEvent(activation('toolactivated', 'add_note'))
+    fire('toolactivated', 'add_note')
     form.dispatchEvent(agentSubmit().event)
     await settle()
     expect(result.isAgentActive.value).toBe(false)
 
     // A renamed form is a different tool.
-    window.dispatchEvent(activation('toolactivated', 'add_note'))
+    fire('toolactivated', 'add_note')
     name.value = 'create_note'
     await nextTick()
     expect(result.isAgentActive.value).toBe(false)
 
     // Nothing listens after unmount.
     unmount()
-    window.dispatchEvent(activation('toolactivated', 'create_note'))
+    fire('toolactivated', 'create_note')
     expect(result.isAgentActive.value).toBe(false)
   })
 
@@ -295,7 +317,7 @@ describe('activation', () => {
       form.dispatchEvent(agentSubmit().event)
       expect(result.isSubmitting.value).toBe(true)
       await nextTick()
-      window.dispatchEvent(activation('toolactivated', 'lookup'))
+      fire('toolactivated', 'lookup')
       expect(result.isAgentActive.value).toBe(false)
 
       finish('ok')
@@ -309,10 +331,10 @@ describe('activation', () => {
 
       await autosubmit(form)
       // Nothing is owed any more, so a fresh activation reads as a real one.
-      window.dispatchEvent(activation('toolactivated', 'lookup'))
+      fire('toolactivated', 'lookup')
       expect(result.isAgentActive.value).toBe(true)
 
-      window.dispatchEvent(activation('toolcancel', 'lookup'))
+      fire('toolcancel', 'lookup')
       expect(result.isAgentActive.value).toBe(false)
     })
 
@@ -322,7 +344,7 @@ describe('activation', () => {
       // No agentInvoked, so nothing is owed and the next activation counts.
       form.dispatchEvent(new SubmitEvent('submit', { cancelable: true, bubbles: true }))
       await settle()
-      window.dispatchEvent(activation('toolactivated', 'lookup'))
+      fire('toolactivated', 'lookup')
       expect(result.isAgentActive.value).toBe(true)
     })
   })
@@ -334,11 +356,11 @@ describe('activation', () => {
       result = useWebMCPForm({ name: 'add_note', description: 'Add', execute: () => 'ok' })
     })
 
-    window.dispatchEvent(activation('toolactivated', 'add_note'))
+    fire('toolactivated', 'add_note')
     expect(result.isAgentActive.value).toBe(true)
 
     scope.stop()
-    window.dispatchEvent(activation('toolcancel', 'add_note'))
+    fire('toolcancel', 'add_note')
     expect(result.isAgentActive.value).toBe(true)
   })
 })
