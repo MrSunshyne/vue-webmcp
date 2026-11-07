@@ -19,9 +19,10 @@ const BUDGETS = {
   // npm's install-size number, in bytes. Raised from 86,000 to make room for
   // the 7.5 kB agent skill, which is documentation and reaches no bundle, and
   // from 94,000 for the README and skill text on the debugging annotation,
-  // then to 96,000 for the docs on where the activation events fire, and to
-  // 98,000 for the testing stub's spec cancellation and events.
-  unpacked: 98_000,
+  // then to 96,000 for the docs on where the activation events fire, to
+  // 98,000 for the testing stub's spec cancellation and events, and to 99,000
+  // for the docs on cancelled calls.
+  unpacked: 99_000,
   // gzipped bytes per entry point, unminified — a proxy, not the shipped size.
   entries: {
     'dist/index.mjs': 5_000,
