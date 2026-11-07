@@ -5,6 +5,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { computed, ref } from 'vue'
 import { defineWebMCPTool, useWebMCPTool } from '../src'
+import type { RegisteredTool } from '../src'
 
 describe('schema-inferred execute args', () => {
   it('infers required and optional properties from a literal inputSchema', () => {
@@ -164,6 +165,43 @@ describe('schema-inferred execute args', () => {
     // type parameters, so `Name` falls back to its `string` default. This
     // predates the schema overload.
     expectTypeOf(manual.name).toEqualTypeOf<string>()
+  })
+})
+
+describe('outputSchema', () => {
+  it('leaves the args inferred from inputSchema alone', () => {
+    useWebMCPTool({
+      name: 'save-note',
+      description: 'Save a note',
+      inputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { id: { type: 'number' } },
+        required: ['id'],
+      },
+      execute(args) {
+        expectTypeOf(args).toEqualTypeOf<{ title: string }>()
+        return { id: 1 }
+      },
+    })
+  })
+
+  it('reads as null or undefined on a discovered tool without one', () => {
+    expectTypeOf<RegisteredTool['outputSchema']>().toEqualTypeOf<object | null | undefined>()
+  })
+
+  it('accepts a ref or getter, through defineWebMCPTool too', () => {
+    const schema = ref({ type: 'object' })
+    defineWebMCPTool({
+      name: 'save-note',
+      description: 'Save a note',
+      outputSchema: () => schema.value,
+      execute: () => ({ id: 1 }),
+    })
   })
 })
 

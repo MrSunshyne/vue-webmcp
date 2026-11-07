@@ -13,6 +13,7 @@ export interface StubTool {
   title?: string
   description: string
   inputSchema?: object
+  outputSchema?: object
   annotations?: {
     readOnlyHint?: boolean
     untrustedContentHint?: boolean
@@ -27,6 +28,7 @@ export interface StubRegisteredTool {
   title: string
   description: string
   inputSchema?: object
+  outputSchema?: object
   annotations?: StubTool['annotations']
   window: unknown
   origin: string
@@ -125,6 +127,7 @@ export function installModelContextStub(host: StubHost = globalThis as StubHost)
         title: tool.title ?? '',
         description: tool.description,
         inputSchema: tool.inputSchema,
+        outputSchema: tool.outputSchema,
         annotations: tool.annotations,
         window: win,
         origin,

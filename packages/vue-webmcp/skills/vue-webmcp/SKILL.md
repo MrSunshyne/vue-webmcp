@@ -75,6 +75,11 @@ value already shaped as `{ content: [...] }` passes through. A thrown value — 
 not — becomes `{ content: [...], isError: true }` after `onError` runs. Return a plain
 string unless there is a reason not to.
 
+An `outputSchema` (Chrome 159+) describes the result for agents but does not change the
+normalization: a returned object still reaches the agent as JSON text. For structured
+output, return MCP's `structuredContent` next to a text block yourself; a value already
+shaped as `{ content: [...] }` passes through untouched.
+
 ### Read reactive state directly in execute
 
 `execute` is not a reactive input and never causes re-registration. It reads state live at
