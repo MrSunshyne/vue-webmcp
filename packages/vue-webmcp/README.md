@@ -292,7 +292,7 @@ Three transitional details are handled for you. Arguments go over as the JSON st
 
 ## Declarative forms: `useWebMCPForm()`
 
-Chrome's [declarative API](https://developer.chrome.com/docs/ai/webmcp/declarative-api) turns a `<form toolname="…">` into a tool: the browser synthesizes the input schema from the fields, an agent fills them in and submits, and the page answers through `SubmitEvent.respondWith()`. `useWebMCPForm()` does the wiring, and the same handler serves a person clicking Submit:
+Chrome's [declarative API](https://developer.chrome.com/docs/ai/webmcp/declarative-api) turns a `<form toolname="…">` into a tool: the browser synthesizes the input schema from the fields, an agent fills them in and submits, and the page answers through `SubmitEvent.respondWith()`. It is more experimental than the imperative API: the spec [removed it](https://github.com/webmachinelearning/webmcp/pull/338) on 2026-10-08 to focus on `registerTool()`, and it lives on in a separate [explainer](https://github.com/webmachinelearning/webmcp/blob/main/declarative-api-explainer.md). Chrome still ships it in the origin trial, behind its own runtime feature since 157. `useWebMCPForm()` does the wiring, and the same handler serves a person clicking Submit:
 
 ```vue
 <script setup lang="ts">
