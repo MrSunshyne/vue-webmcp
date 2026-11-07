@@ -81,6 +81,79 @@ describe('installModelContextStub', () => {
     expect(execute).toHaveBeenCalledWith({ q: 1 }, { signal: expect.any(AbortSignal) })
   })
 
+  it('rejects a cancelled call at once and aborts the tool, firing toolcancel', async () => {
+    const stub = installModelContextStub()
+    let toolSignal!: AbortSignal
+    // A tool that ignores its signal and never settles.
+    await stub.registerTool({
+      name: 'slow',
+      description: 'Slow',
+      execute: (_args, options) => {
+        toolSignal = options!.signal
+        return new Promise(() => {})
+      },
+    })
+    const cancelled = vi.fn((event: Event) => (event as ToolCancelEvent).toolName)
+    stub.addEventListener('toolcancel', cancelled)
+
+    const controller = new AbortController()
+    const call = stub.executeTool({ name: 'slow' }, {}, { signal: controller.signal })
+    controller.abort(new DOMException('user moved on', 'AbortError'))
+
+    await expect(call).rejects.toMatchObject({ name: 'AbortError', message: 'user moved on' })
+    expect(toolSignal.aborted).toBe(true)
+    expect(cancelled).toHaveBeenCalledTimes(1)
+    expect(cancelled).toHaveReturnedWith('slow')
+  })
+
+  it('fires toolactivated after invoking execute, for executeTool and call', async () => {
+    const stub = installModelContextStub()
+    const order: string[] = []
+    await stub.registerTool({
+      name: 'echo',
+      description: 'Echo',
+      execute: () => {
+        order.push('execute')
+        return 'ok'
+      },
+    })
+    stub.addEventListener('toolactivated', event => {
+      order.push(`toolactivated:${(event as ToolActivatedEvent).toolName}`)
+    })
+
+    await stub.executeTool({ name: 'echo' })
+    await stub.call('echo')
+    expect(order).toEqual(['execute', 'toolactivated:echo', 'execute', 'toolactivated:echo'])
+  })
+
+  it('names failures the way the spec does', async () => {
+    const stub = installModelContextStub()
+    await stub.registerTool({
+      name: 'broken',
+      description: 'Broken',
+      execute: () => Promise.reject(new Error('database is down')),
+    })
+    await stub.registerTool({
+      name: 'cyclic',
+      description: 'Cyclic',
+      execute: () => {
+        const value: Record<string, unknown> = {}
+        value.self = value
+        return value
+      },
+    })
+
+    await expect(stub.executeTool({ name: 'broken' })).rejects.toMatchObject({
+      name: 'OperationError',
+      message: expect.stringContaining('database is down'),
+    })
+    await expect(stub.executeTool({ name: 'cyclic' })).rejects.toMatchObject({ name: 'OperationError' })
+    await expect(stub.executeTool({ name: 'broken' }, '"text"')).rejects.toMatchObject({
+      name: 'DataError',
+    })
+    await expect(stub.executeTool({ name: 'missing' })).rejects.toMatchObject({ name: 'NotFoundError' })
+  })
+
   it('unregisters when the signal aborts', async () => {
     const stub = installModelContextStub()
     const controller = new AbortController()
