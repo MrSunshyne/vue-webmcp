@@ -167,6 +167,39 @@ describe('schema-inferred execute args', () => {
   })
 })
 
+describe('outputSchema', () => {
+  it('leaves the args inferred from inputSchema alone', () => {
+    useWebMCPTool({
+      name: 'save-note',
+      description: 'Save a note',
+      inputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { id: { type: 'number' } },
+        required: ['id'],
+      },
+      execute(args) {
+        expectTypeOf(args).toEqualTypeOf<{ title: string }>()
+        return { id: 1 }
+      },
+    })
+  })
+
+  it('accepts a ref or getter, through defineWebMCPTool too', () => {
+    const schema = ref({ type: 'object' })
+    defineWebMCPTool({
+      name: 'save-note',
+      description: 'Save a note',
+      outputSchema: () => schema.value,
+      execute: () => ({ id: 1 }),
+    })
+  })
+})
+
 describe('hoisted schema variables', () => {
   it('keeps full inference for a schema hoisted with as const', () => {
     const schema = {

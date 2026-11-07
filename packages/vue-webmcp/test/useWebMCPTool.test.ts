@@ -70,6 +70,22 @@ describe('registration lifecycle', () => {
     expect(registerTool.mock.calls[0]![0].annotations).toEqual(annotations)
   })
 
+  it('passes outputSchema through to registerTool', () => {
+    const { registerTool } = installFakeModelContext()
+    const outputSchema = {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+    }
+    mountComposable(() => useWebMCPTool({ ...baseOptions, name: 'plain', execute: () => 'ok' }))
+    mountComposable(() =>
+      useWebMCPTool({ ...baseOptions, name: 'typed', outputSchema, execute: () => ({ id: 'n_1' }) }),
+    )
+
+    expect(registerTool.mock.calls[0]![0].outputSchema).toBeUndefined()
+    expect(registerTool.mock.calls[1]![0].outputSchema).toEqual(outputSchema)
+  })
+
   it('passes title through to registerTool and omits it when unset', () => {
     const { registerTool } = installFakeModelContext()
     mountComposable(() => useWebMCPTool({ ...baseOptions, name: 'plain', execute: () => 'ok' }))
@@ -322,6 +338,21 @@ describe('re-registration identity', () => {
     await nextTick()
 
     expect(registerTool).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-registers on an outputSchema change, but not on a content-equal one', async () => {
+    const { registerTool } = installFakeModelContext()
+    const outputSchema = ref<object>({ type: 'object', properties: { id: { type: 'string' } } })
+    mountComposable(() => useWebMCPTool({ ...baseOptions, outputSchema, execute: () => 'ok' }))
+
+    outputSchema.value = { type: 'object', properties: { id: { type: 'string' } } }
+    await nextTick()
+    expect(registerTool).toHaveBeenCalledTimes(1)
+
+    outputSchema.value = { type: 'object', properties: { id: { type: 'number' } } }
+    await nextTick()
+    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(registerTool.mock.calls[1]![0].outputSchema).toEqual(outputSchema.value)
   })
 
   it('re-registers under the new name and removes the old tool', async () => {

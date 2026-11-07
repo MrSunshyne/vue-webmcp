@@ -38,7 +38,10 @@ export type InferToolArgs<Schema extends object> = Parameters<
 export type ToolInputSchemaShape = { type: string } | { properties: object }
 export type WebMCPToolExecuteOptions = WebMCP.ToolExecuteCallbackOptions
 export type RegisterToolOptions = WebMCP.ModelContextRegisterToolOptions
-export type RegisteredTool = WebMCP.RegisteredTool
+/** The spec's `RegisteredTool`, with `outputSchema` until webmcp-types has it. */
+export interface RegisteredTool extends WebMCP.RegisteredTool {
+  outputSchema?: object
+}
 
 /**
  * What this package hands to `registerTool`: the spec's `ModelContextTool`,
@@ -46,6 +49,8 @@ export type RegisteredTool = WebMCP.RegisteredTool
  * that predate the execution-signal argument (Chrome 153).
  */
 export interface WebMCPToolDescriptor extends Omit<WebMCP.ModelContextTool, 'execute'> {
+  /** Spec PR #254 (2026-11-02); declared here until webmcp-types has it. */
+  outputSchema?: object
   execute: (
     args: unknown,
     options?: WebMCPToolExecuteOptions,

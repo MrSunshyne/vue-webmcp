@@ -43,6 +43,13 @@ export interface UseWebMCPToolOptions<Args = Record<string, unknown>, Result = u
   description: MaybeRefOrGetter<string>
   /** JSON Schema for the tool arguments. Compared by content, not identity. */
   inputSchema?: MaybeRefOrGetter<object | undefined>
+  /**
+   * JSON Schema for the tool's result (Chrome 159+), compared by content like
+   * `inputSchema`. Agents may reject a result that does not validate. The
+   * result is still normalized, so return `{ content, structuredContent }`
+   * to hand an MCP-aware agent the structured value.
+   */
+  outputSchema?: MaybeRefOrGetter<object | undefined>
   annotations?: MaybeRefOrGetter<WebMCPToolAnnotations | undefined>
   /**
    * Secure origins (for example an iframe-hosted agent) that may discover and
@@ -207,6 +214,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       toValue(options.title) ?? null,
       toValue(options.description),
       toValue(options.inputSchema) ?? null,
+      toValue(options.outputSchema) ?? null,
       toValue(options.annotations) ?? null,
       toValue(options.exposedTo) ?? null,
       toValue(options.enabled ?? true),
@@ -323,6 +331,7 @@ export function useWebMCPTool<Args = Record<string, unknown>, Result = unknown>(
       ...(title != null ? { title } : {}),
       description: toValue(options.description),
       inputSchema: toValue(options.inputSchema),
+      outputSchema: toValue(options.outputSchema),
       annotations: toValue(options.annotations),
       execute: runTool,
     }

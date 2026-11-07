@@ -55,6 +55,15 @@ describe('installModelContextStub', () => {
     })
   })
 
+  it('returns the outputSchema from getTools', async () => {
+    const stub = installModelContextStub()
+    const outputSchema = { type: 'object', properties: { id: { type: 'string' } } }
+    await stub.registerTool({ name: 'save', description: 'Save', outputSchema, execute: () => 'ok' })
+
+    const [tool] = await stub.getTools()
+    expect(tool!.outputSchema).toEqual(outputSchema)
+  })
+
   it('round-trips every annotation through registerTool and getTools', async () => {
     const stub = installModelContextStub()
     const annotations = {
