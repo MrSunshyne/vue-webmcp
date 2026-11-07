@@ -230,7 +230,7 @@ Whatever `execute` returns is normalized to an MCP tool result, identically to `
 
 ### Output schema
 
-`outputSchema` describes the result for agents, which may reject one that does not validate (spec [#254](https://github.com/webmachinelearning/webmcp/pull/254), Chrome 159). It is passed to the browser as is and compared by content like `inputSchema`. Results are still normalized, the same as `use-webmcp-tool`, so a returned object reaches the agent as JSON text. The spec does not define a structured result field; to give an MCP-aware agent the structured value as well, return MCP's `structuredContent` next to the text yourself, which passes through untouched:
+`outputSchema` describes the result for agents, which may reject one that does not validate (spec [#254](https://github.com/webmachinelearning/webmcp/pull/254), Chrome 159). It is passed to the browser as is and compared by content like `inputSchema`. Results are still normalized, the same as `use-webmcp-tool`, so a returned object reaches the agent as JSON text. What an agent checks against the schema is not settled: the spec says the tool's output should conform, and through this package that output is always the `{ content }` result, so an agent that validates the whole result would reject it (see [#16](https://github.com/MrSunshyne/vue-webmcp/issues/16)). The spec defines no structured result field; for an agent that follows MCP and validates `structuredContent`, return it next to the text yourself, which passes through untouched:
 
 ```ts
 useWebMCPTool({
