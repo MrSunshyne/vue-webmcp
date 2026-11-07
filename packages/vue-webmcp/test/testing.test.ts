@@ -55,9 +55,14 @@ describe('installModelContextStub', () => {
     })
   })
 
-  it('round-trips all three annotation hints through registerTool and getTools', async () => {
+  it('round-trips every annotation through registerTool and getTools', async () => {
     const stub = installModelContextStub()
-    const annotations = { readOnlyHint: true, untrustedContentHint: true, consequentialHint: true }
+    const annotations = {
+      readOnlyHint: true,
+      untrustedContentHint: true,
+      consequentialHint: true,
+      debugging: true,
+    }
     await stub.registerTool({ name: 'book', description: 'Book it', annotations, execute: () => 'ok' })
 
     const [tool] = await stub.getTools()
