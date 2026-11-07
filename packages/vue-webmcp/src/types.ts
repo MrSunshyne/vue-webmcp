@@ -38,9 +38,14 @@ export type InferToolArgs<Schema extends object> = Parameters<
 export type ToolInputSchemaShape = { type: string } | { properties: object }
 export type WebMCPToolExecuteOptions = WebMCP.ToolExecuteCallbackOptions
 export type RegisterToolOptions = WebMCP.ModelContextRegisterToolOptions
-/** The spec's `RegisteredTool`, with `outputSchema` until webmcp-types has it. */
-export interface RegisteredTool extends WebMCP.RegisteredTool {
-  outputSchema?: object
+/**
+ * The spec's `RegisteredTool`, with `outputSchema` until webmcp-types has it.
+ * Chrome 158+ hands out `Tool` objects (spec PR #348) whose missing schemas
+ * read as `null` rather than `undefined`, hence `| null`; the `Omit` keeps
+ * this compatible once webmcp-types declares the member itself.
+ */
+export interface RegisteredTool extends Omit<WebMCP.RegisteredTool, 'outputSchema'> {
+  outputSchema?: object | null
 }
 
 /**

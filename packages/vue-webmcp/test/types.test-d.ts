@@ -5,6 +5,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { computed, ref } from 'vue'
 import { defineWebMCPTool, useWebMCPTool } from '../src'
+import type { RegisteredTool } from '../src'
 
 describe('schema-inferred execute args', () => {
   it('infers required and optional properties from a literal inputSchema', () => {
@@ -187,6 +188,10 @@ describe('outputSchema', () => {
         return { id: 1 }
       },
     })
+  })
+
+  it('reads as null or undefined on a discovered tool without one', () => {
+    expectTypeOf<RegisteredTool['outputSchema']>().toEqualTypeOf<object | null | undefined>()
   })
 
   it('accepts a ref or getter, through defineWebMCPTool too', () => {
