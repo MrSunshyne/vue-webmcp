@@ -232,7 +232,9 @@ Tools act with the signed-in user's session. Mark non-mutating tools
 third-party content `untrustedContentHint: true` so agents do not follow it as
 instructions, and mark tools with significant, real-world, or hard-to-reverse
 effects (booking, paying, sending) `consequentialHint: true` so agents can require
-explicit user confirmation first. Never expose an operation as a tool that you
-would not expose as an unauthenticated-intent button. Chrome's character budgets
-are 30 per name, 500 per tool description, 150 per parameter description and
-1.5K per output.
+explicit user confirmation first. Mark developer-tooling tools `debugging: true` so
+general-purpose agents can leave them out, and gate them with
+`enabled: import.meta.env.DEV`: the annotation labels a tool, it does not hide it.
+Never expose an operation as a tool that you would not expose as an
+unauthenticated-intent button. Chrome's character budgets are 30 per name, 500 per
+tool description, 150 per parameter description and 1.5K per output.

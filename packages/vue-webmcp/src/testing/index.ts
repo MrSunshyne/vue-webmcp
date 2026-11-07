@@ -17,6 +17,7 @@ export interface StubTool {
     readOnlyHint?: boolean
     untrustedContentHint?: boolean
     consequentialHint?: boolean
+    debugging?: boolean
   }
   execute: (args: unknown, options?: { signal: AbortSignal }) => unknown
 }
