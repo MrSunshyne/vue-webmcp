@@ -170,8 +170,9 @@ export function useRegisteredTools(options: UseRegisteredToolsOptions = {}): Use
     // conversion with a TypeError before the tool runs, so trying the string
     // first never executes a tool twice. The other order would: an object
     // handed to a DOMString parameter becomes "[object Object]" and only
-    // fails inside the algorithm. A failing tool rejects with an UnknownError
-    // DOMException, never a TypeError, so the retry cannot mask one.
+    // fails inside the algorithm. A failing tool rejects with a DOMException
+    // (OperationError since spec PR #339, UnknownError in older Chrome),
+    // never a TypeError, so the retry cannot mask one.
     const json = JSON.stringify(args)
     try {
       const raw = await call(json)
